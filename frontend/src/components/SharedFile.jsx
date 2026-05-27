@@ -13,7 +13,7 @@ const SharedFile = () => {
   useEffect(() => {
     const fetchFileInfo = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/files/shared/info/${token}`);
+        const res = await axios.get(`/api/files/shared/info/${token}`);
         setFile(res.data);
       } catch (err) {
         setError('Invalid or expired share link.');
@@ -26,7 +26,7 @@ const SharedFile = () => {
 
   const handleDownload = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/files/shared/${token}`, { responseType: 'blob' });
+      const res = await axios.get(`/api/files/shared/${token}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;

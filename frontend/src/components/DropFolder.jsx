@@ -15,7 +15,7 @@ const DropFolder = () => {
   useEffect(() => {
     const fetchFolderInfo = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/folders/drop/${token}`);
+        const res = await axios.get(`/api/folders/drop/${token}`);
         setFolderInfo(res.data);
       } catch (err) {
         setError(err.response?.data?.message || 'Invalid or expired upload link.');
@@ -43,7 +43,7 @@ const DropFolder = () => {
     formData.append('shareToken', token); // Tell the API this is a drop folder
 
     try {
-      await axios.post('http://localhost:5000/api/files', formData, {
+      await axios.post('/api/files', formData, {
         headers: { 
           'Authorization': `Bearer ${jwt}`
         }
