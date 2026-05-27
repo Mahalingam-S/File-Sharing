@@ -1,0 +1,12 @@
+{
+  "name": "file-sharing-root",
+  "version": "1.0.0",
+  "description": "Secure Campus File Sharing and Document Management System",
+  "scripts": {
+    "dev:backend": "cd backend && npx nodemon server.js",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "npx -y concurrently \"npm run dev:backend\" \"npm run dev:frontend\""
+  },
+  "author": "",
+  "license": "ISC"
+}
