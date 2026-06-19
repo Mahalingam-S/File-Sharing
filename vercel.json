@@ -19,8 +19,20 @@
       "destination": "/backend/server.js"
     },
     {
-      "source": "/(.*)",
-      "destination": "/frontend/$1"
+      "source": "/assets/(.*)",
+      "destination": "/frontend/assets/$1"
+    },
+    {
+      "source": "/favicon.svg",
+      "destination": "/frontend/favicon.svg"
+    },
+    {
+      "source": "/icons.svg",
+      "destination": "/frontend/icons.svg"
+    },
+    {
+      "source": "/((?!api|assets|favicon.svg|icons.svg).*)",
+      "destination": "/frontend/index.html"
     }
   ]
 }
