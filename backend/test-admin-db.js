@@ -1,11 +1,13 @@
 const mongoose = require('mongoose');
+require('dotenv').config();
 const User = require('./models/User');
 const File = require('./models/File');
 const AuditLog = require('./models/AuditLog');
 
 const testAdminAPI = async () => {
   try {
-    await mongoose.connect('mongodb://127.0.0.1:27017/File-Sharing');
+    const mongoURI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/File-Sharing';
+    await mongoose.connect(mongoURI);
     
     const totalUsers = await User.countDocuments();
     const totalFiles = await File.countDocuments();

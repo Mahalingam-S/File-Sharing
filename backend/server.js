@@ -20,6 +20,7 @@ app.use('/api/folders', require('./routes/folderRoutes'));
 app.use('/api/files', require('./routes/fileRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/help', require('./routes/helpRoutes'));
+app.use('/api/departments', require('./routes/departmentRoutes'));
 
 // Base Route
 app.get('/', (req, res) => {

@@ -383,7 +383,8 @@ button {
 }
 
 /* Tabular Explorer Table Classes */
-.explorer-header {
+.explorer-header,
+.file-explorer-header {
   display: grid;
   grid-template-columns: 40px minmax(200px, 3.5fr) 1.5fr 1.2fr 1.5fr 2fr;
   padding: 0.75rem 1.5rem;
@@ -393,7 +394,8 @@ button {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.explorer-row {
+.explorer-row,
+.file-explorer-row {
   display: grid;
   grid-template-columns: 40px minmax(200px, 3.5fr) 1.5fr 1.2fr 1.5fr 2fr;
   padding: 0.9rem 1.5rem;
@@ -406,7 +408,8 @@ button {
   cursor: pointer;
 }
 
-.explorer-row:hover {
+.explorer-row:hover,
+.file-explorer-row:hover {
   background: rgba(15, 23, 42, 0.45);
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
@@ -419,12 +422,14 @@ button {
   gap: 8px;
 }
 
-.explorer-row .hover-actions {
+.explorer-row .hover-actions,
+.file-explorer-row .hover-actions {
   opacity: 0;
   transition: opacity 0.2s ease;
 }
 
-.explorer-row:hover .hover-actions {
+.explorer-row:hover .hover-actions,
+.file-explorer-row:hover .hover-actions {
   opacity: 1;
 }
 
@@ -468,3 +473,117 @@ button {
   color: #22d3ee;
   cursor: default;
 }
+
+/* Mobile Responsiveness Refinements for File Explorer & Admin Dashboard */
+@media (max-width: 768px) {
+  /* Hide desktop-only tables and headers */
+  .file-explorer-header,
+  .admin-table-header {
+    display: none !important;
+  }
+
+  /* File Explorer Layout collapse to modern cards */
+  .file-explorer-row {
+    grid-template-columns: 1fr auto !important;
+    padding: 0.75rem 1rem !important;
+    gap: 8px !important;
+    margin-bottom: 6px !important;
+    border-radius: 12px !important;
+    background: rgba(15, 23, 42, 0.35) !important;
+  }
+
+  /* Hide Checkbox, Date, Size, Owner in main explorer grid */
+  .file-explorer-row > div:nth-child(1),
+  .file-explorer-row > div:nth-child(3),
+  .file-explorer-row > div:nth-child(4),
+  .file-explorer-row > div:nth-child(5) {
+    display: none !important;
+  }
+
+  /* Admin Users Row collapse */
+  .admin-users-row {
+    grid-template-columns: 1fr auto !important;
+    padding: 0.75rem 1rem !important;
+    gap: 8px !important;
+    margin-bottom: 6px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Hide Email and Date columns in Users directory */
+  .admin-users-row > div:nth-child(2),
+  .admin-users-row > div:nth-child(4) {
+    display: none !important;
+  }
+
+  /* Admin Logs Row collapse */
+  .admin-logs-row {
+    grid-template-columns: 1.5fr 1fr auto !important;
+    padding: 0.75rem 1rem !important;
+    gap: 8px !important;
+    margin-bottom: 6px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Hide Date Logged and IP columns in Logs list */
+  .admin-logs-row > div:nth-child(1),
+  .admin-logs-row > div:nth-child(2) {
+    display: none !important;
+  }
+
+  /* Admin Modal Files Row collapse */
+  .admin-modal-files-row {
+    grid-template-columns: 1fr auto !important;
+    padding: 0.75rem 1rem !important;
+    gap: 8px !important;
+    margin-bottom: 6px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Hide Size column in modal file list */
+  .admin-modal-files-row > div:nth-child(2) {
+    display: none !important;
+  }
+
+  /* Make mobile subcaptions visible */
+  .mobile-only-info {
+    display: block !important;
+  }
+
+  /* Action buttons scaling and text hiding on mobile */
+  .file-explorer-row .row-action-btn span,
+  .admin-users-row .row-action-btn span,
+  .admin-modal-files-row .row-action-btn span {
+    display: none !important;
+  }
+
+  .file-explorer-row .row-action-btn,
+  .admin-users-row .row-action-btn,
+  .admin-modal-files-row .row-action-btn {
+    padding: 8px !important;
+    border-radius: 8px !important;
+    gap: 0 !important;
+    justify-content: center !important;
+    display: inline-flex !important;
+  }
+
+  /* Keep action triggers visible without desktop hover */
+  .file-explorer-row .hover-actions {
+    opacity: 1 !important;
+  }
+
+  /* General mobile workspace layout tuning */
+  main {
+    padding: 1rem !important;
+  }
+
+  .glass-panel {
+    padding: 1rem !important;
+    border-radius: 16px !important;
+  }
+
+  .dashboard-header {
+    margin-bottom: 1rem !important;
+    gap: 0.75rem !important;
+  }
+}
+

@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     allowedHosts: ['daisy-unrumoured-showingly.ngrok-free.dev', '.ngrok-free.dev', '.ngrok-free.app'],
+    hmr: false,
     proxy: {
       '/api': {
         target: 'http://localhost:5000',

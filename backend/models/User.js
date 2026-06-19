@@ -11,8 +11,8 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Please add an email'],
     unique: true,
     match: [
-      /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-      'Please add a valid email'
+      /^(\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+|s_mahalingam)$/,
+      'Please add a valid email or username'
     ]
   },
   password: {
@@ -28,7 +28,6 @@ const userSchema = new mongoose.Schema({
   },
   department: {
     type: String,
-    enum: ['CSE', 'MCA', 'ECE', 'Placement Cell', 'Examination Cell', 'General'],
     default: 'General'
   },
   rollNo: {
@@ -44,7 +43,7 @@ const userSchema = new mongoose.Schema({
 });
 
 // Encrypt password using bcrypt
-userSchema.pre('save', async function() {
+userSchema.pre('save', async function () {
   if (!this.isModified('password')) {
     return;
   }
@@ -54,7 +53,7 @@ userSchema.pre('save', async function() {
 });
 
 // Match user entered password to hashed password in database
-userSchema.methods.matchPassword = async function(enteredPassword) {
+userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 

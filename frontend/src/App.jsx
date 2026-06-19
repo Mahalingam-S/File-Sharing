@@ -33,9 +33,53 @@ function App() {
           <Route path="/shared/:token" element={<SharedFile />} />
           <Route 
             path="/dashboard" 
+            element={<Navigate to="/dashboard/overview" replace />} 
+          />
+          <Route 
+            path="/dashboard/overview" 
             element={
               <PrivateRoute>
-                <Dashboard />
+                <Dashboard defaultView="overview" />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/dashboard/my-files" 
+            element={
+              <PrivateRoute>
+                <Dashboard defaultView="private" />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/dashboard/department-files" 
+            element={
+              <PrivateRoute>
+                <Dashboard defaultView="department" />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/dashboard/student-portfolio" 
+            element={
+              <PrivateRoute>
+                <Dashboard defaultView="students" />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/dashboard/recent" 
+            element={
+              <PrivateRoute>
+                <Dashboard defaultView="recent" />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/dashboard/shared" 
+            element={
+              <PrivateRoute>
+                <Dashboard defaultView="shared" />
               </PrivateRoute>
             } 
           />

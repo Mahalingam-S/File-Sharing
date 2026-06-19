@@ -7,6 +7,7 @@ const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const nodemailer = require('nodemailer');
 const { classifyFile } = require('../utils/classifier');
+const { uploadToStorage, downloadFromStorage, deleteFromStorage } = require('../utils/storage');
 
 // @desc    Upload a new file
 // @route   POST /api/files
@@ -29,10 +30,14 @@ const uploadFile = async (req, res) => {
     }
 
     const documentCategory = classifyFile(req.file.originalname, req.file.mimetype);
+    const storageName = `${crypto.randomUUID()}${path.extname(req.file.originalname)}`;
+
+    // Upload to our storage service (cloud or local fallback)
+    await uploadToStorage(req.file.buffer, storageName, req.file.mimetype);
 
     const newFile = await File.create({
       originalName: req.file.originalname,
-      storageName: req.file.filename,
+      storageName: storageName,
       folderId: targetFolderId,
       ownerId: req.user._id,
       mimeType: req.file.mimetype,
@@ -67,15 +72,13 @@ const downloadFile = async (req, res) => {
       return res.status(404).json({ message: 'File not found' });
     }
 
-    // Optional: Add access control here if they aren't the owner or if there's no share token
-    if (file.ownerId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    // Access control check: allow if owner, admin, or same department and isPublicToDepartment (fallback to 'General' to prevent leak if undefined)
+    const isOwner = file.ownerId.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin';
+    const isDeptAllowed = file.isPublicToDepartment && file.department === (req.user.department || 'General');
+
+    if (!isOwner && !isAdmin && !isDeptAllowed) {
        return res.status(403).json({ message: 'Not authorized to download this file' });
-    }
-
-    const filePath = path.join(__dirname, '../storage', file.storageName);
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: 'Physical file not found on disk' });
     }
 
     // Create Audit Log
@@ -86,7 +89,7 @@ const downloadFile = async (req, res) => {
       entityId: file._id
     });
 
-    res.download(filePath, file.originalName);
+    await downloadFromStorage(file.storageName, res, file.originalName);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -146,17 +149,11 @@ const downloadSharedFile = async (req, res) => {
       return res.status(403).json({ message: 'Download limit reached for this link' });
     }
 
-    const filePath = path.join(__dirname, '../storage', file.storageName);
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: 'Physical file not found on disk' });
-    }
-
     // Increment download count
     file.shareDownloadCount += 1;
     await file.save();
 
-    res.download(filePath, file.originalName);
+    await downloadFromStorage(file.storageName, res, file.originalName);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -210,10 +207,8 @@ const deleteFile = async (req, res) => {
       return res.status(403).json({ message: 'User not authorized' });
     }
 
-    const filePath = path.join(__dirname, '../storage', file.storageName);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
+    // Delete from storage (cloud or local fallback)
+    await deleteFromStorage(file.storageName);
 
     await File.findByIdAndDelete(req.params.id);
 
@@ -252,20 +247,21 @@ const toggleDepartmentPublish = async (req, res) => {
   }
 };
 
-// @desc    Get files published to the user's department
-// @route   GET /api/files/department
-// @access  Private
 const getDepartmentFiles = async (req, res) => {
   try {
     const query = { isPublicToDepartment: true };
-    // If not admin, restrict to user's department
+    // If not admin, restrict to user's department (fallback to 'General' to prevent leak if undefined)
     if (req.user.role !== 'admin') {
-      query.department = req.user.department;
+      query.department = req.user.department || 'General';
     }
 
-    const files = await File.find(query).populate('ownerId', 'name role department academicYear').sort({ createdAt: -1 });
+    // Enforce root-level restrictions so nested files and folders don't leak into the root view
+    const fileQuery = { ...query, folderId: null };
+    const folderQuery = { ...query, parentId: null };
 
-    const folders = await Folder.find(query).populate('ownerId', 'name role department').sort({ name: 1 });
+    const files = await File.find(fileQuery).populate('ownerId', 'name role department academicYear').sort({ createdAt: -1 });
+
+    const folders = await Folder.find(folderQuery).populate('ownerId', 'name role department').sort({ name: 1 });
 
     res.status(200).json({ files, folders });
   } catch (error) {

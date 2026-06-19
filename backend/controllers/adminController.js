@@ -4,6 +4,7 @@ const File = require('../models/File');
 const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
+const { deleteFromStorage } = require('../utils/storage');
 
 const sendAccountStatusEmail = async (user, status) => {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
@@ -151,12 +152,8 @@ const deleteUserFile = async (req, res) => {
       return res.status(404).json({ message: 'File not found' });
     }
 
-    const filePath = path.join(__dirname, '../storage', file.storageName);
-    
-    // Delete physical file
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
+    // Delete from storage (cloud or local fallback)
+    await deleteFromStorage(file.storageName);
 
     // Delete database record
     await File.findByIdAndDelete(req.params.id);
@@ -195,8 +192,7 @@ const deleteUser = async (req, res) => {
     // Physical file deletion
     const files = await File.find({ ownerId: user._id });
     for (const file of files) {
-      const filePath = path.join(__dirname, '../storage', file.storageName);
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      await deleteFromStorage(file.storageName);
     }
 
     // Delete DB records
@@ -236,6 +232,58 @@ const approveUser = async (req, res) => {
   }
 };
 
+// @desc    Update a user's details, department, role, or rollNo (Admin only)
+// @route   PATCH /api/admin/users/:id
+// @access  Private/Admin
+const updateUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Prevent active admin user from changing their own role or status
+    if (req.user._id.toString() === user._id.toString()) {
+      return res.status(403).json({ message: 'Administrators cannot demote or modify their own core account settings.' });
+    }
+
+    const { name, email, role, department, rollNo, isApproved } = req.body;
+
+    if (name) user.name = name;
+    if (email) user.email = email;
+    
+    if (role) {
+      const allowedRoles = ['student', 'faculty', 'staff', 'admin'];
+      if (!allowedRoles.includes(role)) {
+        return res.status(400).json({ message: 'Invalid role specified.' });
+      }
+      user.role = role;
+      if (role !== 'student') {
+        user.rollNo = null; // Clear roll number for non-students
+      }
+    }
+
+    if (department) {
+      const allowedDepts = ['CSE', 'MCA', 'ECE', 'Placement Cell', 'Examination Cell', 'General'];
+      if (!allowedDepts.includes(department)) {
+        return res.status(400).json({ message: 'Invalid department specified.' });
+      }
+      user.department = department;
+    }
+
+    if (rollNo !== undefined) {
+      user.rollNo = user.role === 'student' ? rollNo : null;
+    }
+
+    if (isApproved !== undefined) {
+      user.isApproved = isApproved;
+    }
+
+    const updatedUser = await user.save();
+    res.status(200).json({ message: 'User updated successfully', user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getSystemLogs,
   getSystemStats,
@@ -246,5 +294,6 @@ module.exports = {
   deleteUserFile,
   verifyFile,
   deleteUser,
-  approveUser
+  approveUser,
+  updateUser
 };

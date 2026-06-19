@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Folder, FileText, Upload, Plus, Trash2, ArrowLeft, Download, 
-  LogOut, Shield, Share2, X, Search, Clock, FileImage, FileCode, 
+import {
+  Folder, FileText, Upload, Plus, Trash2, ArrowLeft, Download,
+  LogOut, Shield, Share2, X, Search, Clock, FileImage, FileCode,
   FileVideo, Home, Layout, Info, Calendar, ChevronRight, CheckCircle, AlertCircle, Mail, Users, HelpCircle,
   Settings, Bell, MoreHorizontal
 } from 'lucide-react';
 
-const Dashboard = () => {
+const Dashboard = ({ defaultView = 'private' }) => {
   const { user, api, logout, refreshUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [items, setItems] = useState({ folders: [], files: [], currentFolder: null });
@@ -17,7 +17,22 @@ const Dashboard = () => {
   const [recentFilesData, setRecentFilesData] = useState([]);
   const [sharedFilesData, setSharedFilesData] = useState([]);
   const [studentsData, setStudentsData] = useState([]);
-  const [currentView, setCurrentView] = useState('private'); // 'private' or 'department' or 'students'
+  const currentView = defaultView;
+  const setCurrentView = (newView) => {
+    if (newView === 'overview') {
+      window.location.href = '/dashboard/overview';
+    } else if (newView === 'private') {
+      window.location.href = '/dashboard/my-files';
+    } else if (newView === 'department') {
+      window.location.href = '/dashboard/department-files';
+    } else if (newView === 'students') {
+      window.location.href = '/dashboard/student-portfolio';
+    } else if (newView === 'recent') {
+      window.location.href = '/dashboard/recent';
+    } else if (newView === 'shared') {
+      window.location.href = '/dashboard/shared';
+    }
+  };
   const [currentParentId, setCurrentParentId] = useState('root');
   const [history, setHistory] = useState(['root']);
   const [newFolderName, setNewFolderName] = useState('');
@@ -50,10 +65,12 @@ const Dashboard = () => {
 
   const fetchContents = async (folderId) => {
     try {
-      const res = await api.get(`/folders/${folderId}`);
+      console.log('[Dashboard Debug] Fetching contents for:', folderId);
+      const res = await api.get(`/folders/${folderId}?_t=${Date.now()}`);
+      console.log('[Dashboard Debug] Fetched contents successfully:', res.data);
       setItems(res.data);
     } catch (err) {
-      console.error(err);
+      console.error('[Dashboard Debug] Error fetching contents:', err);
     }
   };
 
@@ -73,10 +90,12 @@ const Dashboard = () => {
 
   const fetchDepartmentFiles = async () => {
     try {
-      const res = await api.get('/files/department');
+      console.log('[Dashboard Debug] Fetching department files');
+      const res = await api.get(`/files/department?_t=${Date.now()}`);
+      console.log('[Dashboard Debug] Fetched department files successfully:', res.data);
       setDepartmentData(res.data);
     } catch (err) {
-      console.error(err);
+      console.error('[Dashboard Debug] Error fetching department files:', err);
     }
   };
 
@@ -108,7 +127,17 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    console.log('[Dashboard Debug] Effect triggered. currentView:', currentView, 'currentParentId:', currentParentId);
+
+    // Reset scroll positions of workspace and lists on view or folder change
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.scrollTop = 0;
+    
+    const explorerEl = document.querySelector('.file-explorer-row')?.parentElement;
+    if (explorerEl) explorerEl.scrollTop = 0;
+
     const fetchData = () => {
+      console.log('[Dashboard Debug] Running auto-refresh poll for view:', currentView, 'parent:', currentParentId);
       if (currentView === 'private' || (currentView === 'department' && currentParentId !== 'root')) {
         fetchContents(currentParentId);
       } else if (currentView === 'department') {
@@ -125,24 +154,24 @@ const Dashboard = () => {
     // Fetch immediately on mount or state change
     fetchData();
 
-    // Setup auto-refresh every 3 seconds
-    const intervalId = setInterval(fetchData, 3000);
+    // Setup auto-refresh every 15 seconds
+    const intervalId = setInterval(fetchData, 15000);
 
-    // If admin, default to department view
-    if (user?.role === 'admin' && currentView === 'private') {
-      setCurrentView('department');
-    }
+
 
     // Cleanup interval on unmount or dependency change
-    return () => clearInterval(intervalId);
+    return () => {
+      console.log('[Dashboard Debug] Cleaning up interval:', intervalId);
+      clearInterval(intervalId);
+    };
   }, [currentParentId, currentView, user]);
 
   const handleCreateFolder = async (e) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
     try {
-      await api.post('/folders', { 
-        name: newFolderName, 
+      await api.post('/folders', {
+        name: newFolderName,
         parentId: currentParentId === 'root' ? null : currentParentId,
         deadline: newFolderDeadline || null,
         isPublicToDepartment: currentView === 'department'
@@ -167,7 +196,7 @@ const Dashboard = () => {
     if (currentParentId !== 'root') {
       formData.append('folderId', currentParentId);
     }
-    
+
     if (currentView === 'department') {
       formData.append('isPublicToDepartment', 'true');
     }
@@ -282,7 +311,7 @@ const Dashboard = () => {
         expiresHours: parseInt(shareModal.expiresHours),
         downloadLimit: shareModal.downloadLimit ? parseInt(shareModal.downloadLimit) : null
       });
-      
+
       const shareUrl = `${window.location.origin}/shared/${res.data.shareToken}`;
       navigator.clipboard.writeText(shareUrl);
       showToast('Secure link copied to clipboard!', 'success');
@@ -295,7 +324,7 @@ const Dashboard = () => {
   };
 
   const handleRevokeLink = async (id, e) => {
-    if(e) e.stopPropagation();
+    if (e) e.stopPropagation();
     try {
       const res = await api.put(`/files/${id}/revoke`);
       if (selectedItem && selectedItem._id === id) {
@@ -382,7 +411,7 @@ const Dashboard = () => {
     if (!deadline) return null;
     const diff = new Date(deadline) - new Date();
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    
+
     if (days < 0) return { label: 'Past Deadline', color: 'var(--danger)' };
     if (days === 0) return { label: 'Due Today', color: 'var(--danger)' };
     if (days <= 3) return { label: `${days}d left`, color: '#f59e0b' };
@@ -392,9 +421,9 @@ const Dashboard = () => {
   const isBrowsingFolder = currentParentId !== 'root';
   const foldersToFilter = (currentView === 'private' || isBrowsingFolder) ? (items?.folders || []) : (currentView === 'department' ? (departmentData?.folders || []) : []);
   const filteredFolders = foldersToFilter.filter(f => f && f.name && f.name.toLowerCase().includes(searchTerm.toLowerCase()));
-  
+
   const filesToFilter = (currentView === 'private' || isBrowsingFolder) ? (items?.files || []) : (currentView === 'department' ? (departmentData?.files || []) : (currentView === 'recent' ? recentFilesData : sharedFilesData));
-  
+
   const filteredFiles = filesToFilter.filter(f => {
     if (!f) return false;
     const term = searchTerm.toLowerCase();
@@ -405,7 +434,7 @@ const Dashboard = () => {
     const matchOwner = f.ownerId?.name?.toLowerCase()?.includes(term) || f.ownerId?.role?.toLowerCase()?.includes(term);
     return matchName || matchCategory || matchDepartment || matchAcademicYear || matchOwner;
   });
-  
+
   // We no longer have a separate recent files UI block, they are displayed in the main grid
   const recentFiles = [];
 
@@ -415,24 +444,24 @@ const Dashboard = () => {
 
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <button 
+        <button
           onClick={() => {
             setCurrentParentId('root');
             setHistory(['root']);
             if (currentView === 'department') fetchDepartmentFiles();
           }}
-          className="glass-panel" 
+          className="glass-panel"
           style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--text-primary)', cursor: 'pointer' }}
         >
           <Home size={14} /> {currentView === 'private' ? 'My Drive' : 'Dept Drive'}
         </button>
-        
+
         {currentParentId !== 'root' && (
           <>
             <ChevronRight size={14} color="var(--text-secondary)" />
-            <button 
+            <button
               onClick={handleBack}
-              className="btn-primary" 
+              className="btn-primary"
               style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
             >
               <ArrowLeft size={14} /> Back
@@ -477,7 +506,7 @@ const Dashboard = () => {
     let docBytes = 0;
     let photoBytes = 0;
     let otherBytes = 0;
-    
+
     files.forEach(f => {
       if (!f) return;
       const mime = f.mimeType?.toLowerCase() || '';
@@ -489,7 +518,7 @@ const Dashboard = () => {
         otherBytes += f.sizeBytes;
       }
     });
-    
+
     const total = docBytes + photoBytes + otherBytes;
     if (total === 0) {
       return {
@@ -501,7 +530,7 @@ const Dashboard = () => {
         otherFormatted: '0.00 MB'
       };
     }
-    
+
     return {
       docPercent: Math.round((docBytes / total) * 100),
       photoPercent: Math.round((photoBytes / total) * 100),
@@ -578,10 +607,10 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-color)', overflow: 'hidden' }}>
-      
+
       {/* Sidebar Navigation */}
-      <aside className="glass-panel sidebar" style={{ 
-        width: sidebarCollapsed ? '80px' : '260px', 
+      <aside className="glass-panel sidebar" style={{
+        width: sidebarCollapsed ? '80px' : '260px',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 100,
@@ -603,34 +632,32 @@ const Dashboard = () => {
 
         {/* Menu Navigation */}
         <nav style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {user?.role !== 'admin' && (
-            <div className={`sidebar-item ${currentView === 'private' ? 'active' : ''}`} onClick={() => { setCurrentView('private'); setCurrentParentId('root'); setHistory(['root']); }}>
-              <Home size={18} />
-              {!sidebarCollapsed && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Home</span>}
-            </div>
-          )}
+          <div className={`sidebar-item ${currentView === 'overview' ? 'active' : ''}`} onClick={() => setCurrentView('overview')}>
+            <Home size={18} />
+            {!sidebarCollapsed && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Overview</span>}
+          </div>
+          <div className={`sidebar-item ${currentView === 'private' ? 'active' : ''}`} onClick={() => { setCurrentView('private'); setCurrentParentId('root'); setHistory(['root']); }}>
+            <Folder size={18} />
+            {!sidebarCollapsed && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>My Files</span>}
+          </div>
           <div className={`sidebar-item ${currentView === 'department' ? 'active' : ''}`} onClick={() => { setCurrentView('department'); setCurrentParentId('root'); setHistory(['root']); }}>
             <Layout size={18} />
-            {!sidebarCollapsed && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>All Files</span>}
+            {!sidebarCollapsed && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Dept Files</span>}
           </div>
-          {(user?.role === 'faculty' || user?.role === 'staff') && (
+          {(user?.role === 'faculty' || user?.role === 'staff' || user?.role === 'admin') && (
             <div className={`sidebar-item ${currentView === 'students' ? 'active' : ''}`} onClick={() => setCurrentView('students')}>
               <Users size={18} />
-              {!sidebarCollapsed && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Team Drives</span>}
+              {!sidebarCollapsed && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Student Portfolios</span>}
             </div>
           )}
-          {user?.role !== 'admin' && (
-            <>
-              <div className={`sidebar-item ${currentView === 'recent' ? 'active' : ''}`} onClick={() => { setCurrentView('recent'); setSearchTerm(''); }}>
-                <Clock size={18} />
-                {!sidebarCollapsed && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Recent</span>}
-              </div>
-              <div className={`sidebar-item ${currentView === 'shared' ? 'active' : ''}`} onClick={() => { setCurrentView('shared'); setSearchTerm(''); }}>
-                <Share2 size={18} />
-                {!sidebarCollapsed && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Shared</span>}
-              </div>
-            </>
-          )}
+          <div className={`sidebar-item ${currentView === 'recent' ? 'active' : ''}`} onClick={() => { setCurrentView('recent'); setSearchTerm(''); }}>
+            <Clock size={18} />
+            {!sidebarCollapsed && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Recent</span>}
+          </div>
+          <div className={`sidebar-item ${currentView === 'shared' ? 'active' : ''}`} onClick={() => { setCurrentView('shared'); setSearchTerm(''); }}>
+            <Share2 size={18} />
+            {!sidebarCollapsed && <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Shared</span>}
+          </div>
           {user?.role === 'admin' && (
             <div className="sidebar-item" onClick={() => navigate('/admin')} style={{ color: 'var(--danger)' }}>
               <Shield size={18} />
@@ -655,24 +682,24 @@ const Dashboard = () => {
       </aside>
 
       {/* Main Workspace */}
-      <main style={{ 
-        flexGrow: 1, 
-        padding: '1.25rem 2rem 1.25rem 2rem', 
-        height: '100vh', 
+      <main style={{
+        flexGrow: 1,
+        padding: '1.25rem 2rem 1.25rem 2rem',
+        height: '100vh',
         overflowY: 'auto',
         display: 'flex',
         flexDirection: 'column'
       }}>
-        
+
         {/* Top Header Row (Search & Action Buttons) */}
         <header className="dashboard-header" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '1.5rem', gap: '1.25rem', width: '100%' }}>
-          
+
           {/* Magnifying glass smart search */}
           <div className="glass-panel" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0.6rem 1.25rem', width: '280px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
             <Search size={16} color="var(--text-secondary)" />
-            <input 
-              type="text" 
-              placeholder="Search Files & Folders..." 
+            <input
+              type="text"
+              placeholder="Search Files & Folders..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{ background: 'transparent', border: 'none', padding: 0, width: '100%', fontSize: '0.85rem', color: 'var(--text-primary)', outline: 'none' }}
@@ -681,9 +708,9 @@ const Dashboard = () => {
 
           {/* New Action Dropdown Trigger */}
           <div style={{ position: 'relative' }}>
-            <button 
-              onClick={() => setShowNewDropdown(!showNewDropdown)} 
-              className="btn-new-gradient" 
+            <button
+              onClick={() => setShowNewDropdown(!showNewDropdown)}
+              className="btn-new-gradient"
               style={{ border: 'none', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', borderRadius: '8px' }}
             >
               <Plus size={16} strokeWidth={2.5} /> <span>New</span>
@@ -692,7 +719,7 @@ const Dashboard = () => {
               {showNewDropdown && (
                 <>
                   <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} onClick={() => setShowNewDropdown(false)}></div>
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 8 }}
@@ -709,16 +736,16 @@ const Dashboard = () => {
                       border: '1px solid rgba(255,255,255,0.08)'
                     }}
                   >
-                    <div 
-                      className="sidebar-item" 
+                    <div
+                      className="sidebar-item"
                       onClick={() => { setShowFolderModal(true); setShowNewDropdown(false); }}
                       style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}
                     >
                       <Folder size={16} color="#a855f7" />
                       <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>New Folder</span>
                     </div>
-                    <div 
-                      className="sidebar-item" 
+                    <div
+                      className="sidebar-item"
                       onClick={() => {
                         setShowNewDropdown(false);
                         setTimeout(() => {
@@ -741,12 +768,12 @@ const Dashboard = () => {
 
           {/* Bell Notifications Badge */}
           <div style={{ position: 'relative' }}>
-            <button 
+            <button
               onClick={() => {
                 setShowNotifications(!showNotifications);
                 setShowNewDropdown(false);
               }}
-              className="glass-panel" 
+              className="glass-panel"
               style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--text-secondary)', cursor: 'pointer' }}
               title="Notifications"
             >
@@ -759,7 +786,7 @@ const Dashboard = () => {
               {showNotifications && (
                 <>
                   <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} onClick={() => setShowNotifications(false)}></div>
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 8 }}
@@ -779,7 +806,7 @@ const Dashboard = () => {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem' }}>
                       <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)' }}>Notifications</h4>
-                      <button 
+                      <button
                         onClick={() => setNotifications(notifications.map(n => ({ ...n, unread: false })))}
                         style={{ background: 'transparent', border: 'none', color: '#22d3ee', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}
                       >
@@ -810,353 +837,417 @@ const Dashboard = () => {
         </header>
 
         {/* Row 1 Deck: Welcome back banner + Storage Usage Gauge */}
-        <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-          
-          {/* Welcome Card */}
-          <div className="glass-panel welcome-card-premium" style={{ flex: '2', padding: '2rem', display: 'flex', alignItems: 'center', gap: '1.5rem', minWidth: '350px', borderRadius: '24px' }}>
-            <div style={{
-              position: 'relative',
-              width: '64px',
-              height: '64px',
-              borderRadius: '50%',
-              border: '2px solid #8b5cf6',
-              padding: '2px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}>
+        {currentView === 'overview' && (
+          <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+
+            {/* Welcome Card */}
+            <div className="glass-panel welcome-card-premium" style={{ flex: '2', padding: '2rem', display: 'flex', alignItems: 'center', gap: '1.5rem', minWidth: '350px', borderRadius: '24px' }}>
               <div style={{
-                width: '100%',
-                height: '100%',
+                position: 'relative',
+                width: '64px',
+                height: '64px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
+                border: '2px solid #8b5cf6',
+                padding: '2px',
+                background: 'rgba(255, 255, 255, 0.05)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontWeight: 'bold',
-                color: 'white',
-                fontSize: '1.4rem'
+                flexShrink: 0
               }}>
-                {user?.name ? user.name.charAt(0).toUpperCase() : 'S'}
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 'bold',
+                  color: 'white',
+                  fontSize: '1.4rem'
+                }}>
+                  {user?.name ? user.name.charAt(0).toUpperCase() : 'S'}
+                </div>
               </div>
-            </div>
-            <div>
-              <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Welcome back,</p>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-primary)' }}>
-                {user?.role === 'faculty' || user?.role === 'admin' ? `Professor ${user?.name || ''}` : `${user?.name || ''}`}
-              </h2>
-              <p style={{ fontSize: '0.8rem', color: '#22d3ee', fontWeight: '500', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {user?.role} • {user?.department || 'General'} Department
-              </p>
-            </div>
-          </div>
-
-          {/* Storage Usage Card */}
-          <div className="glass-panel" style={{ flex: '1.2', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '280px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-secondary)' }}>Storage Usage</h3>
-            
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', height: '90px' }}>
-              <svg viewBox="0 0 100 50" width="100%" height="80px" className="storage-progress-svg" style={{ transform: 'scale(1.2)', transformOrigin: 'center bottom' }}>
-                <path d="M 10,50 A 40,40 0 0,1 90,50" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" strokeLinecap="round" />
-                <path d="M 10,50 A 40,40 0 0,1 90,50" fill="none" stroke="url(#storageGrad)" strokeWidth="8" strokeLinecap="round" strokeDasharray="125.6" strokeDashoffset={125.6 * (1 - (usagePercent / 100))} />
-                <defs>
-                  <linearGradient id="storageGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#22d3ee" />
-                    <stop offset="100%" stopColor="#a855f7" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div style={{ position: 'absolute', bottom: '2px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: '500' }}>Used:</span>
-                <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>{formattedUsed} / {formattedTotal}</span>
-                <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#22d3ee', marginTop: '1px' }}>{usagePercent}%</span>
+              <div>
+                <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>Welcome back,</p>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                  {user?.name || ''}
+                </h2>
+                <p style={{ fontSize: '0.8rem', color: '#22d3ee', fontWeight: '500', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {user?.role} • {user?.department || 'General'} Department
+                </p>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.75rem', marginTop: '2px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span className="legend-dot" style={{ background: '#22d3ee' }}></span>
-                  <span style={{ color: 'var(--text-secondary)' }}>Document Files ({catStats.docFormatted})</span>
+            {/* Storage Usage Card */}
+            <div className="glass-panel" style={{ flex: '1.2', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '280px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-secondary)' }}>Storage Usage</h3>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', height: '90px' }}>
+                <svg viewBox="0 0 100 50" width="100%" height="80px" className="storage-progress-svg" style={{ transform: 'scale(1.2)', transformOrigin: 'center bottom' }}>
+                  <path d="M 10,50 A 40,40 0 0,1 90,50" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" strokeLinecap="round" />
+                  <path d="M 10,50 A 40,40 0 0,1 90,50" fill="none" stroke="url(#storageGrad)" strokeWidth="8" strokeLinecap="round" strokeDasharray="125.6" strokeDashoffset={125.6 * (1 - (usagePercent / 100))} />
+                  <defs>
+                    <linearGradient id="storageGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#22d3ee" />
+                      <stop offset="100%" stopColor="#a855f7" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div style={{ position: 'absolute', bottom: '2px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: '500' }}>Used:</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-primary)' }}>{formattedUsed} / {formattedTotal}</span>
+                  <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#22d3ee', marginTop: '1px' }}>{usagePercent}%</span>
                 </div>
-                <span style={{ fontWeight: '600' }}>{catStats.docPercent}%</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span className="legend-dot" style={{ background: '#a855f7' }}></span>
-                  <span style={{ color: 'var(--text-secondary)' }}>Photos ({catStats.photoFormatted})</span>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.75rem', marginTop: '2px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="legend-dot" style={{ background: '#22d3ee' }}></span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Document Files ({catStats.docFormatted})</span>
+                  </div>
+                  <span style={{ fontWeight: '600' }}>{catStats.docPercent}%</span>
                 </div>
-                <span style={{ fontWeight: '600' }}>{catStats.photoPercent}%</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span className="legend-dot" style={{ background: 'rgba(255,255,255,0.25)' }}></span>
-                  <span style={{ color: 'var(--text-secondary)' }}>Other Files ({catStats.otherFormatted})</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="legend-dot" style={{ background: '#a855f7' }}></span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Photos ({catStats.photoFormatted})</span>
+                  </div>
+                  <span style={{ fontWeight: '600' }}>{catStats.photoPercent}%</span>
                 </div>
-                <span style={{ fontWeight: '600' }}>{catStats.otherPercent}%</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="legend-dot" style={{ background: 'rgba(255,255,255,0.25)' }}></span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Other Files ({catStats.otherFormatted})</span>
+                  </div>
+                  <span style={{ fontWeight: '600' }}>{catStats.otherPercent}%</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Row 2: Team Folders */}
-        <section style={{ marginBottom: '2rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Team Folders</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1.25rem' }}>
-            <div className="team-folder-card" onClick={() => { setCurrentView('private'); setCurrentParentId('root'); setHistory(['root']); }} style={{ cursor: 'pointer' }}>
-              <Folder size={28} color="#a855f7" fill="rgba(168, 85, 247, 0.15)" style={{ marginBottom: '12px' }} />
-              <h4 style={{ fontWeight: '600', fontSize: '0.95rem', marginBottom: '8px' }}>Research Projects</h4>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{user?.stats?.formattedUsage || '0.00 MB'} Used</p>
-              <p style={{ fontSize: '0.75rem', color: '#22d3ee', fontWeight: '500', marginTop: '2px' }}>{user?.stats?.totalFiles || 0} Files • Private</p>
+        {currentView === 'overview' && (
+          <section style={{ marginBottom: '2rem' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>Team Folders</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1.25rem' }}>
+              <div className="team-folder-card" onClick={() => { setCurrentView('private'); setCurrentParentId('root'); setHistory(['root']); }} style={{ cursor: 'pointer' }}>
+                <Folder size={28} color="#a855f7" fill="rgba(168, 85, 247, 0.15)" style={{ marginBottom: '12px' }} />
+                <h4 style={{ fontWeight: '600', fontSize: '0.95rem', marginBottom: '8px' }}>My File's</h4>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{user?.stats?.formattedUsage || '0.00 MB'} Used</p>
+                <p style={{ fontSize: '0.75rem', color: '#22d3ee', fontWeight: '500', marginTop: '2px' }}>{user?.stats?.totalFiles || 0} Files • Private</p>
+              </div>
+              <div className="team-folder-card" onClick={() => { setCurrentView('department'); setCurrentParentId('root'); setHistory(['root']); }} style={{ cursor: 'pointer' }}>
+                <Folder size={28} color="#22d3ee" fill="rgba(34, 211, 238, 0.15)" style={{ marginBottom: '12px' }} />
+                <h4 style={{ fontWeight: '600', fontSize: '0.95rem', marginBottom: '8px' }}>Department File's</h4>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{departmentData?.files?.length || 0} Shared Documents</p>
+                <p style={{ fontSize: '0.75rem', color: '#ec4899', fontWeight: '500', marginTop: '2px' }}>{user?.department || 'General'} Dept Shared</p>
+              </div>
+              <div className="team-folder-card" onClick={() => { if (user?.role === 'faculty' || user?.role === 'staff' || user?.role === 'admin') setCurrentView('students'); }} style={{ cursor: user?.role === 'student' ? 'not-allowed' : 'pointer', opacity: user?.role === 'student' ? 0.6 : 1 }}>
+                <Folder size={28} color="#ec4899" fill="rgba(236, 72, 153, 0.15)" style={{ marginBottom: '12px' }} />
+                <h4 style={{ fontWeight: '600', fontSize: '0.95rem', marginBottom: '8px' }}>Student Portfolios</h4>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{studentsData?.length || 0} Student Accounts</p>
+                <p style={{ fontSize: '0.75rem', color: '#a855f7', fontWeight: '500', marginTop: '2px' }}>{user?.role === 'student' ? 'Faculty Protected' : 'Active Directory'}</p>
+              </div>
             </div>
-            <div className="team-folder-card" onClick={() => { setCurrentView('department'); setCurrentParentId('root'); setHistory(['root']); }} style={{ cursor: 'pointer' }}>
-              <Folder size={28} color="#22d3ee" fill="rgba(34, 211, 238, 0.15)" style={{ marginBottom: '12px' }} />
-              <h4 style={{ fontWeight: '600', fontSize: '0.95rem', marginBottom: '8px' }}>Department Docs</h4>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{departmentData?.files?.length || 0} Shared Documents</p>
-              <p style={{ fontSize: '0.75rem', color: '#ec4899', fontWeight: '500', marginTop: '2px' }}>{user?.department || 'General'} Dept Shared</p>
-            </div>
-            <div className="team-folder-card" onClick={() => { if (user?.role === 'faculty' || user?.role === 'staff' || user?.role === 'admin') setCurrentView('students'); }} style={{ cursor: user?.role === 'student' ? 'not-allowed' : 'pointer', opacity: user?.role === 'student' ? 0.6 : 1 }}>
-              <Folder size={28} color="#ec4899" fill="rgba(236, 72, 153, 0.15)" style={{ marginBottom: '12px' }} />
-              <h4 style={{ fontWeight: '600', fontSize: '0.95rem', marginBottom: '8px' }}>Student Portfolios</h4>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{studentsData?.length || 0} Student Accounts</p>
-              <p style={{ fontSize: '0.75rem', color: '#a855f7', fontWeight: '500', marginTop: '2px' }}>{user?.role === 'student' ? 'Faculty Protected' : 'Active Directory'}</p>
-            </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Row 3: My Files Explorer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', marginTop: '0.5rem' }}>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-primary)' }}>My Files</h2>
-        </div>
+        {currentView !== 'overview' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', marginTop: '0.5rem' }}>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                {currentView === 'private' ? 'My Files' : (currentView === 'department' ? 'Department Files' : (currentView === 'students' ? 'Student Portfolios' : (currentView === 'recent' ? 'Recent Files' : 'Shared Links')))}
+              </h2>
+            </div>
 
-        {/* Explorer Table Container */}
-        <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '24px', flexGrow: 1, display: 'flex', flexDirection: 'column', border: '1px solid rgba(255,255,255,0.06)' }}>
-          
-          {/* Navigation Breadcrumbs inside File Explorer */}
-          <div className="breadcrumb-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem', fontSize: '0.9rem', flexWrap: 'wrap' }}>
-            {currentParentId !== 'root' && (
-              <button 
-                onClick={handleBack}
-                className="row-action-btn" 
-                style={{ 
-                  padding: '6px 14px', 
-                  fontSize: '0.8rem', 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  gap: '6px', 
-                  cursor: 'pointer',
-                  borderRadius: '8px',
-                  marginRight: '12px',
-                  fontWeight: '600',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  color: '#ffffff'
-                }}
-              >
-                <ArrowLeft size={14} strokeWidth={2.5} color="#ffffff" /> Back
-              </button>
-            )}
-            <span 
-              onClick={() => {
-                setCurrentParentId('root');
-                setHistory(['root']);
-                if (currentView === 'department') fetchDepartmentFiles();
-              }}
-              className="breadcrumb-item"
-            >
-              Recent Files
-            </span>
-            <ChevronRight size={12} color="var(--text-secondary)" />
-            <span className="breadcrumb-active" style={{ cursor: 'pointer' }}>
-              {currentView === 'students' ? 'Students Directory' : (currentView === 'recent' ? 'Recent Files' : (currentView === 'shared' ? 'Shared Links' : (currentView === 'department' ? 'Documents' : (items.currentFolder ? items.currentFolder.name : 'Documents'))))}
-            </span>
-            {currentParentId !== 'root' && items.currentFolder && (
-              <>
-                <ChevronRight size={12} color="var(--text-secondary)" />
-                <span className="breadcrumb-active">{items.currentFolder.name}</span>
-              </>
-            )}
-          </div>
+            {/* Explorer Table Container */}
+            <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '24px', flexGrow: 1, display: 'flex', flexDirection: 'column', border: '1px solid rgba(255,255,255,0.06)' }}>
 
-          {/* Table Layout Column Headers */}
-          <div className="explorer-header">
-            <div></div>
-            <div>Name</div>
-            <div>Date Modified</div>
-            <div>Size</div>
-            <div>Owner</div>
-            <div style={{ textAlign: 'right', paddingRight: '1rem' }}>Tags</div>
-          </div>
-
-          {/* Explorer List rows container */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px', overflowY: 'auto', flexGrow: 1 }}>
-            
-            {currentParentId !== 'root' && (
-              <div onClick={handleBack} className="explorer-row" style={{ fontStyle: 'italic', color: '#22d3ee' }}>
-                <div></div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <ArrowLeft size={16} />
-                  <span>Go Back</span>
-                </div>
-                <div></div>
-                <div></div>
-                <div></div>
-                <div></div>
-              </div>
-            )}
-
-            {/* Render Folders */}
-            {filteredFolders.map(folder => {
-              const folderTags = getDynamicFolderTags(folder);
-              return (
-                <div 
-                  key={folder._id} 
-                  onClick={() => { navigateToFolder(folder._id); setSelectedItem(null); }}
-                  className="explorer-row"
-                >
-                  <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
-                    <input type="checkbox" style={{ cursor: 'pointer', width: '15px', height: '15px', accentColor: '#22d3ee' }} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
-                    <div style={{ background: 'rgba(168, 85, 247, 0.1)', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Folder size={18} color="#a855f7" fill="rgba(168, 85, 247, 0.2)" />
-                    </div>
-                    <span style={{ fontWeight: '500', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {folder.name}
+              {/* Navigation Breadcrumbs inside File Explorer */}
+              <div className="breadcrumb-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem', fontSize: '0.9rem', flexWrap: 'wrap' }}>
+                {currentParentId !== 'root' && (
+                  <button
+                    onClick={handleBack}
+                    className="row-action-btn"
+                    style={{
+                      padding: '6px 14px',
+                      fontSize: '0.8rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                      borderRadius: '8px',
+                      marginRight: '12px',
+                      fontWeight: '600',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      color: '#ffffff'
+                    }}
+                  >
+                    <ArrowLeft size={14} strokeWidth={2.5} color="#ffffff" /> Back
+                  </button>
+                )}
+                {currentParentId === 'root' ? (
+                  <span className="breadcrumb-active" style={{ fontWeight: '600', fontSize: '0.9rem' }}>
+                    {currentView === 'private' ? 'My Files' : (currentView === 'department' ? 'Department Files' : (currentView === 'students' ? 'Student Portfolio' : (currentView === 'recent' ? 'Recent Files' : 'Shared Links')))}
+                  </span>
+                ) : (
+                  <>
+                    <span
+                      onClick={() => {
+                        setCurrentParentId('root');
+                        setHistory(['root']);
+                        if (currentView === 'department') fetchDepartmentFiles();
+                      }}
+                      className="breadcrumb-item"
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {currentView === 'private' ? 'My Files' : (currentView === 'department' ? 'Department Files' : (currentView === 'students' ? 'Student Portfolio' : (currentView === 'recent' ? 'Recent Files' : 'Shared Links')))}
                     </span>
+                    <ChevronRight size={12} color="var(--text-secondary)" />
+                    <span className="breadcrumb-active">
+                      {items.currentFolder ? items.currentFolder.name : 'Folder'}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Table Layout Column Headers */}
+              <div className="file-explorer-header">
+                <div></div>
+                <div>Name</div>
+                <div>{currentView === 'students' ? 'Email' : 'Date Modified'}</div>
+                <div>{currentView === 'students' ? 'Roll Number' : 'Size'}</div>
+                <div>{currentView === 'students' ? 'Department' : 'Owner'}</div>
+                <div style={{ textAlign: 'right', paddingRight: '1rem' }}>{currentView === 'students' ? 'Status' : 'Tags'}</div>
+              </div>
+
+              {/* Explorer List rows container */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px', overflowY: 'auto', flexGrow: 1 }}>
+
+                {currentParentId !== 'root' && (
+                  <div onClick={handleBack} className="file-explorer-row" style={{ fontStyle: 'italic', color: '#22d3ee' }}>
+                    <div></div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <ArrowLeft size={16} />
+                      <span>Go Back</span>
+                    </div>
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                    <div></div>
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    {folder.deadline ? new Date(folder.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Oct 24, 2023'}
+                )}
+
+                {/* Render Students */}
+                {currentView === 'students' && studentsData.map(student => (
+                  <div
+                    key={student._id}
+                    className="file-explorer-row"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" style={{ cursor: 'pointer', width: '15px', height: '15px', accentColor: '#ec4899' }} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
+                      <div style={{ background: 'rgba(236, 72, 153, 0.1)', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Users size={18} color="#ec4899" />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <span style={{ fontWeight: '500', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {student.name}
+                        </span>
+                        <span className="mobile-only-info" style={{ display: 'none', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          {student.rollNo || 'No Roll No.'} • {student.email}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      {student.email}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      {student.rollNo || 'N/A'}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      {student.department}
+                    </div>
+                    <div className="action-trigger-area">
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <span className="badge-tag-grant" style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '6px', fontWeight: '600' }}>
+                          Active
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    {folder.isDropFolder ? 'Submissions' : '1.2 GB'}
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    {folder.ownerId?.name || user?.name || 'Sarah Chen'}
-                  </div>
-                  <div className="action-trigger-area" onClick={(e) => e.stopPropagation()}>
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                      {(folder.ownerId === user?._id || folder.ownerId?._id === user?._id || folder.ownerId?.toString() === user?._id?.toString() || user?.role === 'admin') && (
-                        <>
-                          {folder.shareToken ? (
-                            <button 
-                              onClick={(e) => handleRevokeFolderLink(folder._id, e)}
-                              className="row-action-btn"
-                              style={{ color: 'white', background: 'rgba(239, 68, 68, 0.25)', borderColor: 'rgba(239, 68, 68, 0.45)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
-                            >
-                              <X size={14} /> Close Drop
-                            </button>
-                          ) : (
-                            <button 
-                              onClick={(e) => handleShareFolder(folder, e)}
-                              className="row-action-btn"
-                              style={{ color: '#22d3ee', background: 'rgba(34, 211, 238, 0.12)', borderColor: 'rgba(34, 211, 238, 0.35)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
-                            >
-                              <Share2 size={14} /> Enable Drop
-                            </button>
+                ))}
+
+                {/* Render Folders */}
+                {filteredFolders.map(folder => {
+                  const folderTags = getDynamicFolderTags(folder);
+                  return (
+                    <div
+                      key={folder._id}
+                      onClick={() => { navigateToFolder(folder._id); setSelectedItem(null); }}
+                      className="file-explorer-row"
+                    >
+                      <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
+                        <input type="checkbox" style={{ cursor: 'pointer', width: '15px', height: '15px', accentColor: '#22d3ee' }} />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
+                        <div style={{ background: 'rgba(168, 85, 247, 0.1)', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Folder size={18} color="#a855f7" fill="rgba(168, 85, 247, 0.2)" />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                          <span style={{ fontWeight: '500', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {folder.name}
+                          </span>
+                          <span className="mobile-only-info" style={{ display: 'none', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                            {folder.isDropFolder ? 'Submissions Drop' : 'Folder'} • {folder.ownerId?.name || user?.name || 'Sarah Chen'}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        {folder.deadline ? new Date(folder.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Oct 24, 2023'}
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        {folder.isDropFolder ? 'Submissions' : '1.2 GB'}
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        {folder.ownerId?.name || user?.name || 'Sarah Chen'}
+                      </div>
+                      <div className="action-trigger-area" onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          {(folder.ownerId === user?._id || folder.ownerId?._id === user?._id || folder.ownerId?.toString() === user?._id?.toString() || user?.role === 'admin') && (
+                            <>
+                              {folder.shareToken ? (
+                                <button
+                                  onClick={(e) => handleRevokeFolderLink(folder._id, e)}
+                                  className="row-action-btn"
+                                  style={{ color: 'white', background: 'rgba(239, 68, 68, 0.25)', borderColor: 'rgba(239, 68, 68, 0.45)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
+                                >
+                                  <X size={14} /> <span>Close Drop</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={(e) => handleShareFolder(folder, e)}
+                                  className="row-action-btn"
+                                  style={{ color: '#22d3ee', background: 'rgba(34, 211, 238, 0.12)', borderColor: 'rgba(34, 211, 238, 0.35)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
+                                >
+                                  <Share2 size={14} /> <span>Enable Drop</span>
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => handleDeleteFolder(folder._id, e)}
+                                className="row-action-btn"
+                                style={{ color: '#f87171', background: 'rgba(248, 113, 113, 0.12)', borderColor: 'rgba(248, 113, 113, 0.35)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
+                              >
+                                <Trash2 size={14} /> <span>Delete</span>
+                              </button>
+                            </>
                           )}
-                          <button 
-                            onClick={(e) => handleDeleteFolder(folder._id, e)}
-                            className="row-action-btn"
-                            style={{ color: '#f87171', background: 'rgba(248, 113, 113, 0.12)', borderColor: 'rgba(248, 113, 113, 0.35)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
-                          >
-                            <Trash2 size={14} /> Delete
-                          </button>
-                        </>
-                      )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
 
-            {/* Render Files */}
-            {filteredFiles.map(file => {
-              const fileTags = getDynamicTags(file);
-              return (
-                <div 
-                  key={file._id} 
-                  onClick={() => setSelectedItem(file)}
-                  className="explorer-row"
-                >
-                  <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
-                    <input type="checkbox" style={{ cursor: 'pointer', width: '15px', height: '15px', accentColor: '#22d3ee' }} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
-                    <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {getFileIconRedesigned(file.mimeType)}
-                    </div>
-                    <span style={{ fontWeight: '500', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>
-                      {file.originalName}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    {new Date(file.createdAt || '2023-10-26').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    {(file.sizeBytes / 1024 / 1024).toFixed(1)} MB
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    {file.ownerId?.name || user?.name || 'Sarah Chen'}
-                  </div>
-                  <div className="action-trigger-area" onClick={(e) => e.stopPropagation()}>
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                      <button 
-                        onClick={(e) => handleDownloadFile(file._id, file.originalName, e)}
-                        className="row-action-btn"
-                        style={{ color: '#34d399', background: 'rgba(52, 211, 153, 0.12)', borderColor: 'rgba(52, 211, 153, 0.35)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
-                      >
-                        <Download size={14} /> Download
-                      </button>
-                      {(file.ownerId?._id === user?._id || file.ownerId === user?._id || file.ownerId?._id?.toString() === user?._id?.toString() || user?.role === 'admin') && (
-                        <>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setShareModal({ ...shareModal, isOpen: true, id: file._id, type: 'file', isPublic: file.isPublicToDepartment }); }}
+                {/* Render Files */}
+                {filteredFiles.map(file => {
+                  const fileTags = getDynamicTags(file);
+                  return (
+                    <div
+                      key={file._id}
+                      onClick={() => setSelectedItem(file)}
+                      className="file-explorer-row"
+                    >
+                      <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
+                        <input type="checkbox" style={{ cursor: 'pointer', width: '15px', height: '15px', accentColor: '#22d3ee' }} />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
+                        <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {getFileIconRedesigned(file.mimeType)}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                          <span style={{ fontWeight: '500', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>
+                            {file.originalName}
+                          </span>
+                          <span className="mobile-only-info" style={{ display: 'none', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                            {(file.sizeBytes / 1024 / 1024).toFixed(1)} MB • {file.ownerId?.name || user?.name || 'Sarah Chen'}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        {new Date(file.createdAt || '2023-10-26').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        {(file.sizeBytes / 1024 / 1024).toFixed(1)} MB
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        {file.ownerId?.name || user?.name || 'Sarah Chen'}
+                      </div>
+                      <div className="action-trigger-area" onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={(e) => handleDownloadFile(file._id, file.originalName, e)}
                             className="row-action-btn"
-                            style={{ color: '#22d3ee', background: 'rgba(34, 211, 238, 0.12)', borderColor: 'rgba(34, 211, 238, 0.35)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
+                            style={{ color: '#34d399', background: 'rgba(52, 211, 153, 0.12)', borderColor: 'rgba(52, 211, 153, 0.35)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
                           >
-                            <Share2 size={14} /> Share
+                            <Download size={14} /> <span>Download</span>
                           </button>
-                          <button 
-                            onClick={(e) => handleDeleteFile(file._id, e)}
-                            className="row-action-btn"
-                            style={{ color: '#f87171', background: 'rgba(248, 113, 113, 0.12)', borderColor: 'rgba(248, 113, 113, 0.35)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
-                          >
-                            <Trash2 size={14} /> Delete
-                          </button>
-                        </>
-                      )}
+                          {(file.ownerId?._id === user?._id || file.ownerId === user?._id || file.ownerId?._id?.toString() === user?._id?.toString() || user?.role === 'admin') && (
+                            <>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setShareModal({ ...shareModal, isOpen: true, id: file._id, type: 'file', isPublic: file.isPublicToDepartment }); }}
+                                className="row-action-btn"
+                                style={{ color: '#22d3ee', background: 'rgba(34, 211, 238, 0.12)', borderColor: 'rgba(34, 211, 238, 0.35)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
+                              >
+                                <Share2 size={14} /> <span>Share</span>
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteFile(file._id, e)}
+                                className="row-action-btn"
+                                style={{ color: '#f87171', background: 'rgba(248, 113, 113, 0.12)', borderColor: 'rgba(248, 113, 113, 0.35)', fontSize: '0.8rem', padding: '8px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '500' }}
+                              >
+                                <Trash2 size={14} /> <span>Delete</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
 
-            {filteredFolders.length === 0 && filteredFiles.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '4rem 0' }}>
-                <Folder size={48} style={{ opacity: 0.15, margin: '0 auto 1rem' }} />
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{searchTerm ? 'No search results found.' : 'This workspace folder is currently empty.'}</p>
+                {filteredFolders.length === 0 && filteredFiles.length === 0 && (currentView !== 'students' || studentsData.length === 0) && (
+                  <div style={{ textAlign: 'center', padding: '4rem 0' }}>
+                    <Folder size={48} style={{ opacity: 0.15, margin: '0 auto 1rem' }} />
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{searchTerm ? 'No search results found.' : 'This workspace folder is currently empty.'}</p>
+                  </div>
+                )}
+
               </div>
-            )}
-
-          </div>
-        </div>
+            </div>
+          </>
+        )}
 
         {/* Dynamic Detail slide-in Pane (Fades/Slides floating on right) */}
         <div style={{ position: 'absolute', right: '2rem', top: '6rem', zIndex: 90 }}>
           <AnimatePresence>
             {selectedItem && (
-              <motion.div 
+              <motion.div
                 initial={{ x: 300, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: 300, opacity: 0 }}
                 className="glass-panel dashboard-detail-pane"
-                style={{ 
-                  width: '320px', 
-                  padding: '1.5rem', 
-                  height: 'calc(100vh - 8rem)', 
+                style={{
+                  width: '320px',
+                  padding: '1.5rem',
+                  height: 'calc(100vh - 8rem)',
                   overflowY: 'auto',
                   border: '1px solid rgba(255,255,255,0.08)',
                   boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
@@ -1209,9 +1300,9 @@ const Dashboard = () => {
                         <p style={{ fontSize: '0.7rem', color: '#ec4899' }}>Active Share Link</p>
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>Shared with students.</p>
                       </div>
-                      <button 
+                      <button
                         onClick={(e) => handleRevokeLink(selectedItem._id, e)}
-                        className="row-action-btn" 
+                        className="row-action-btn"
                         style={{ padding: '4px 8px', fontSize: '0.7rem', background: 'var(--danger)', border: 'none', color: 'white' }}
                       >
                         Revoke
@@ -1227,9 +1318,9 @@ const Dashboard = () => {
                           {selectedItem.isPublicToDepartment ? 'Visible to Dept' : 'Private'}
                         </p>
                       </div>
-                      <button 
+                      <button
                         onClick={(e) => handleTogglePublish(selectedItem._id, e)}
-                        className="row-action-btn" 
+                        className="row-action-btn"
                         style={{ padding: '4px 8px', fontSize: '0.7rem', color: selectedItem.isPublicToDepartment ? "var(--danger)" : "var(--accent-primary)" }}
                       >
                         {selectedItem.isPublicToDepartment ? 'Hide' : 'Publish'}
@@ -1246,18 +1337,18 @@ const Dashboard = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', marginTop: '2rem', flexDirection: 'column' }}>
-                  <button 
+                  <button
                     onClick={(e) => handleDownloadFile(selectedItem._id, selectedItem.originalName, e)}
-                    className="btn-primary" 
+                    className="btn-primary"
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '10px', fontSize: '0.85rem' }}
                   >
                     <Download size={14} /> Download File
                   </button>
                   <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                     {user?.role !== 'student' && (
-                      <button 
+                      <button
                         onClick={(e) => { e.stopPropagation(); setShareModal({ ...shareModal, isOpen: true, fileId: selectedItem._id }); }}
-                        className="glass-panel" 
+                        className="glass-panel"
                         style={{ flex: 1, padding: '10px', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                         title="Generate Share Link"
                       >
@@ -1265,18 +1356,18 @@ const Dashboard = () => {
                       </button>
                     )}
                     {(user?.role === 'faculty' || user?.role === 'staff') && (
-                      <button 
+                      <button
                         onClick={(e) => { e.stopPropagation(); setNotifyModal({ isOpen: true, fileId: selectedItem._id, target: 'department' }); }}
-                        className="glass-panel" 
+                        className="glass-panel"
                         style={{ flex: 1, padding: '10px', color: 'var(--accent-primary)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                         title="Send Email Notification"
                       >
                         <Mail size={16} />
                       </button>
                     )}
-                    <button 
+                    <button
                       onClick={(e) => handleDeleteFile(selectedItem._id, e)}
-                      className="glass-panel" 
+                      className="glass-panel"
                       style={{ flex: 1, padding: '10px', color: 'var(--danger)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                       title="Delete File"
                     >
@@ -1293,30 +1384,30 @@ const Dashboard = () => {
         <AnimatePresence>
           {showFolderModal && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="glass-panel" 
+                className="glass-panel"
                 style={{ padding: '2.5rem', width: '100%', maxWidth: '400px' }}
               >
                 <h3 style={{ marginBottom: '1.5rem' }}>New Folder</h3>
                 <form onSubmit={handleCreateFolder}>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     placeholder="Enter folder name..."
                     autoFocus
                     required
                   />
-                  
+
                   <div style={{ marginTop: '1.5rem' }}>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <Calendar size={14} /> Assignment Deadline (Optional)
                     </p>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       value={newFolderDeadline}
                       onChange={(e) => setNewFolderDeadline(e.target.value)}
                       style={{ background: 'var(--glass-bg-hover)' }}
@@ -1337,22 +1428,22 @@ const Dashboard = () => {
         <AnimatePresence>
           {shareModal.isOpen && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="glass-panel" 
+                className="glass-panel"
                 style={{ padding: '2.5rem', width: '100%', maxWidth: '400px' }}
               >
                 <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Share2 size={24} color="var(--accent-primary)" /> {shareModal.type === 'file' ? 'Secure Share Link' : 'Folder Sharing Options'}
                 </h3>
-                
+
                 {shareModal.type === 'file' ? (
                   <>
                     <div style={{ marginBottom: '1.5rem' }}>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Link Expiry</p>
-                      <select 
+                      <select
                         value={shareModal.expiresHours}
                         onChange={(e) => setShareModal({ ...shareModal, expiresHours: e.target.value })}
                       >
@@ -1365,8 +1456,8 @@ const Dashboard = () => {
 
                     <div style={{ marginBottom: '2rem' }}>
                       <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Download Limit (Optional)</p>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         value={shareModal.downloadLimit}
                         onChange={(e) => setShareModal({ ...shareModal, downloadLimit: e.target.value })}
                         placeholder="e.g. 5 (Leave empty for unlimited)"
@@ -1378,16 +1469,16 @@ const Dashboard = () => {
                     <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
                       You can create a "Drop Folder" link to allow others (like students) to upload files directly into this folder.
                     </p>
-                    <button 
+                    <button
                       onClick={() => { handleCreateDropFolder(shareModal.id); setShareModal({ ...shareModal, isOpen: false }); }}
-                      className="btn-primary" 
+                      className="btn-primary"
                       style={{ width: '100%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                     >
                       <Plus size={18} /> Create Drop Folder Link
                     </button>
                   </div>
                 )}
-                
+
                 {(user?.role === 'faculty' || user?.role === 'staff') && (
                   <div style={{ marginBottom: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--glass-border)' }}>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
@@ -1395,7 +1486,7 @@ const Dashboard = () => {
                     </p>
                     <div style={{ display: 'flex', gap: '10px' }}>
                       {!shareModal.isPublic ? (
-                        <button 
+                        <button
                           onClick={async () => {
                             if (shareModal.type === 'file') {
                               await handleTogglePublish(shareModal.id);
@@ -1404,13 +1495,13 @@ const Dashboard = () => {
                             }
                             setShareModal({ ...shareModal, isOpen: false });
                           }}
-                          className="btn-primary" 
+                          className="btn-primary"
                           style={{ flex: 1, padding: '10px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                         >
                           <Layout size={16} /> Publish to Dept
                         </button>
                       ) : (
-                        <button 
+                        <button
                           onClick={async () => {
                             if (shareModal.type === 'file') {
                               await handleTogglePublish(shareModal.id);
@@ -1419,7 +1510,7 @@ const Dashboard = () => {
                             }
                             setShareModal({ ...shareModal, isOpen: false });
                           }}
-                          className="glass-panel" 
+                          className="glass-panel"
                           style={{ flex: 1, padding: '10px', fontSize: '0.85rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                         >
                           <X size={16} /> Hide from Dept
@@ -1435,9 +1526,9 @@ const Dashboard = () => {
                       Generate & Copy Link
                     </button>
                   )}
-                  <button 
-                    onClick={() => setShareModal({ ...shareModal, isOpen: false })} 
-                    className="glass-panel" 
+                  <button
+                    onClick={() => setShareModal({ ...shareModal, isOpen: false })}
+                    className="glass-panel"
                     style={{ flex: 1, padding: '14px', color: '#ffffff', fontWeight: '600', fontSize: '0.9rem' }}
                   >
                     Cancel
@@ -1452,24 +1543,24 @@ const Dashboard = () => {
         <AnimatePresence>
           {notifyModal.isOpen && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="glass-panel" 
+                className="glass-panel"
                 style={{ padding: '2.5rem', width: '100%', maxWidth: '400px' }}
               >
                 <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Mail size={24} color="var(--accent-primary)" /> Email Notification
                 </h3>
-                
+
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
                   Send an email notification about this shared file.
                 </p>
 
                 <div style={{ marginBottom: '2rem' }}>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Who do you want to notify?</p>
-                  <select 
+                  <select
                     value={notifyModal.target}
                     onChange={(e) => setNotifyModal({ ...notifyModal, target: e.target.value })}
                   >
@@ -1493,11 +1584,11 @@ const Dashboard = () => {
         <AnimatePresence>
           {deleteAccountModal.isOpen && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="glass-panel" 
+                className="glass-panel"
                 style={{ maxWidth: '400px', width: '100%', padding: '2.5rem' }}
               >
                 <div style={{ background: 'rgba(239, 68, 68, 0.1)', width: '64px', height: '64px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
@@ -1510,25 +1601,25 @@ const Dashboard = () => {
 
                 <div style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {['Graduated / Leaving the institution', 'Privacy concerns', 'No longer need to use the platform', 'Other'].map(option => (
-                    <div 
+                    <div
                       key={option}
                       onClick={() => setDeleteAccountModal({ ...deleteAccountModal, reason: option })}
                       className="glass-panel"
-                      style={{ 
-                        padding: '12px 16px', 
-                        cursor: 'pointer', 
-                        display: 'flex', 
-                        alignItems: 'center', 
+                      style={{
+                        padding: '12px 16px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
                         gap: '12px',
                         border: deleteAccountModal.reason === option ? '1px solid var(--danger)' : '1px solid var(--glass-border)',
                         background: deleteAccountModal.reason === option ? 'rgba(239, 68, 68, 0.1)' : 'var(--glass-bg)',
                         transition: 'all 0.2s'
                       }}
                     >
-                      <div style={{ 
-                        width: '18px', 
-                        height: '18px', 
-                        borderRadius: '50%', 
+                      <div style={{
+                        width: '18px',
+                        height: '18px',
+                        borderRadius: '50%',
                         border: deleteAccountModal.reason === option ? '5px solid var(--danger)' : '2px solid var(--text-secondary)',
                         transition: 'all 0.2s'
                       }}></div>
@@ -1538,9 +1629,9 @@ const Dashboard = () => {
                     </div>
                   ))}
                 </div>
-                
+
                 <div style={{ display: 'flex', gap: '1rem' }}>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setDeleteAccountModal({ isOpen: false, reason: '' })}
                     className="glass-panel"
@@ -1548,7 +1639,7 @@ const Dashboard = () => {
                   >
                     Cancel
                   </button>
-                  <button 
+                  <button
                     onClick={confirmDeleteAccount}
                     className="btn-primary"
                     disabled={!deleteAccountModal.reason}
@@ -1564,92 +1655,92 @@ const Dashboard = () => {
 
       </main>
 
-        {/* Help Request Modal */}
-        <AnimatePresence>
-          {showHelpModal && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="glass-panel" 
-                style={{ maxWidth: '500px', width: '100%', padding: '2.5rem' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
-                    <HelpCircle color="var(--accent-primary)" /> Contact Administration
-                  </h3>
-                  <button onClick={() => setShowHelpModal(false)} style={{ background: 'transparent', color: 'var(--text-secondary)' }}>
-                    <X size={20} />
-                  </button>
-                </div>
-                
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-                  Need help? Have an issue with a student account or technical difficulties? Describe your request below.
-                </p>
-
-                <form onSubmit={handleHelpSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Issue Type</label>
-                    <select 
-                      value={helpRequest.type}
-                      onChange={(e) => setHelpRequest({ ...helpRequest, type: e.target.value })}
-                    >
-                      <option value="General">General Inquiry</option>
-                      <option value="Technical Issue">Technical / Bug Issue</option>
-                      <option value="Student Account Issue">Student Account Issue</option>
-                      <option value="Feature Request">Feature Request</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Subject</label>
-                    <input 
-                      type="text" 
-                      value={helpRequest.subject}
-                      onChange={(e) => setHelpRequest({ ...helpRequest, subject: e.target.value })}
-                      placeholder="Summary of the issue"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Detailed Message</label>
-                    <textarea 
-                      value={helpRequest.message}
-                      onChange={(e) => setHelpRequest({ ...helpRequest, message: e.target.value })}
-                      placeholder="Please provide details about your request..."
-                      required
-                      style={{ minHeight: '120px', resize: 'vertical' }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                    <button 
-                      type="button" 
-                      onClick={() => setShowHelpModal(false)} 
-                      className="glass-panel" 
-                      style={{ flex: 1, padding: '12px', color: '#ffffff', fontWeight: '600', border: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn-primary" style={{ flex: 2, padding: '12px' }}>Submit Request</button>
-                  </div>
-                </form>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-
-        {/* Confirmation Modal */}
+      {/* Help Request Modal */}
       <AnimatePresence>
-        {confirmModal.isOpen && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-            <motion.div 
+        {showHelpModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-panel" 
+              className="glass-panel"
+              style={{ maxWidth: '500px', width: '100%', padding: '2.5rem' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+                  <HelpCircle color="var(--accent-primary)" /> Contact Administration
+                </h3>
+                <button onClick={() => setShowHelpModal(false)} style={{ background: 'transparent', color: 'var(--text-secondary)' }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+                Need help? Have an issue with a student account or technical difficulties? Describe your request below.
+              </p>
+
+              <form onSubmit={handleHelpSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Issue Type</label>
+                  <select
+                    value={helpRequest.type}
+                    onChange={(e) => setHelpRequest({ ...helpRequest, type: e.target.value })}
+                  >
+                    <option value="General">General Inquiry</option>
+                    <option value="Technical Issue">Technical / Bug Issue</option>
+                    <option value="Student Account Issue">Student Account Issue</option>
+                    <option value="Feature Request">Feature Request</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Subject</label>
+                  <input
+                    type="text"
+                    value={helpRequest.subject}
+                    onChange={(e) => setHelpRequest({ ...helpRequest, subject: e.target.value })}
+                    placeholder="Summary of the issue"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Detailed Message</label>
+                  <textarea
+                    value={helpRequest.message}
+                    onChange={(e) => setHelpRequest({ ...helpRequest, message: e.target.value })}
+                    placeholder="Please provide details about your request..."
+                    required
+                    style={{ minHeight: '120px', resize: 'vertical' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowHelpModal(false)}
+                    className="glass-panel"
+                    style={{ flex: 1, padding: '12px', color: '#ffffff', fontWeight: '600', border: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-primary" style={{ flex: 2, padding: '12px' }}>Submit Request</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {confirmModal.isOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-panel"
               style={{ maxWidth: '400px', width: '100%', padding: '2.5rem', textAlign: 'center' }}
             >
               <div style={{ background: 'rgba(239, 68, 68, 0.1)', width: '64px', height: '64px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
@@ -1657,16 +1748,16 @@ const Dashboard = () => {
               </div>
               <h2 style={{ marginBottom: '1rem' }}>{confirmModal.title}</h2>
               <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: '1.5' }}>{confirmModal.message}</p>
-              
+
               <div style={{ display: 'flex', gap: '1rem' }}>
-                <button 
+                <button
                   onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
                   className="glass-panel"
                   style={{ flex: 1, padding: '12px', cursor: 'pointer', border: '1px solid var(--glass-border)', color: '#ffffff', fontWeight: '600' }}
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={confirmModal.onConfirm}
                   className="btn-primary"
                   style={{ flex: 1, padding: '12px', background: 'var(--danger)' }}
@@ -1682,7 +1773,7 @@ const Dashboard = () => {
       {/* Modern Toast Notification */}
       <AnimatePresence>
         {toast.isOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.9 }}

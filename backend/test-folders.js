@@ -1,12 +1,15 @@
 const http = require('http');
 const mongoose = require('mongoose');
+require('dotenv').config();
 const User = require('./models/User');
 const jwt = require('jsonwebtoken');
 
 const testFolders = async () => {
-    await mongoose.connect('mongodb://127.0.0.1:27017/File-Sharing');
-    const adminUser = await User.findOne({ email: 's_mahalingam@cb.amrita.edu' });
-    const token = jwt.sign({ id: adminUser._id }, 'supersecretjwttokenforcampusdrive', { expiresIn: '30d' });
+    const mongoURI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/File-Sharing';
+    const jwtSecret = process.env.JWT_SECRET || 'supersecretjwttokenforcampusdrive';
+    await mongoose.connect(mongoURI);
+    const adminUser = await User.findOne({ email: 's_mahalingam' });
+    const token = jwt.sign({ id: adminUser._id }, jwtSecret, { expiresIn: '30d' });
 
     const options = {
         hostname: 'localhost',

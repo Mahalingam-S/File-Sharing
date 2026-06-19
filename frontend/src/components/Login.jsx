@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -10,18 +10,40 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [requireProfile, setRequireProfile] = useState(false);
   const [googleCred, setGoogleCred] = useState(null);
-  
+
   const [role, setRole] = useState('student');
   const [department, setDepartment] = useState('General');
   const [providedName, setProvidedName] = useState('');
   const [rollNo, setRollNo] = useState('');
+  const [departments, setDepartments] = useState([
+    { _id: '1', code: 'CSE', name: 'CSE Department' },
+    { _id: '2', code: 'MCA', name: 'MCA Department' },
+    { _id: '3', code: 'ECE', name: 'ECE Department' },
+    { _id: '4', code: 'Placement Cell', name: 'Placement Cell' },
+    { _id: '5', code: 'Examination Cell', name: 'Examination Cell' },
+    { _id: '6', code: 'General', name: 'General' }
+  ]);
 
   // Admin login states
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
 
-  const { googleAuth, login } = useContext(AuthContext);
+  const { googleAuth, login, api } = useContext(AuthContext);
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const res = await api.get('/departments');
+        if (res.data && Array.isArray(res.data)) {
+          setDepartments(res.data);
+        }
+      } catch (err) {
+        console.error('Error fetching departments:', err);
+      }
+    };
+    fetchDepartments();
+  }, [api]);
   const navigate = useNavigate();
 
   const handleAdminSubmit = async (e) => {
@@ -77,11 +99,11 @@ const Login = () => {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="glass-panel" 
+        className="glass-panel"
         style={{ width: '100%', maxWidth: '400px', padding: '2.5rem' }}
       >
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
@@ -92,11 +114,11 @@ const Login = () => {
         </div>
 
         {error && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            style={{ 
-              background: 'rgba(239, 68, 68, 0.1)', 
+            style={{
+              background: 'rgba(239, 68, 68, 0.1)',
               border: '1px solid var(--danger)',
               color: '#fca5a5',
               padding: '0.75rem',
@@ -128,8 +150,8 @@ const Login = () => {
                   size="large"
                 />
                 {isLoading && <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Authenticating...</p>}
-                
-                <button 
+
+                <button
                   onClick={() => setShowAdminLogin(true)}
                   style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '1rem', cursor: 'pointer', textDecoration: 'underline' }}
                 >
@@ -140,34 +162,34 @@ const Login = () => {
               <form onSubmit={handleAdminSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', textAlign: 'center' }}>Admin Access</h3>
                 <div>
-                  <input 
-                    type="email" 
+                  <input
+                    type="text"
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
-                    placeholder="Admin Email" 
-                    required 
+                    placeholder="Admin Email"
+                    required
                     style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--text-primary)' }}
                   />
                 </div>
                 <div>
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder="Password" 
-                    required 
+                    placeholder="Password"
+                    required
                     style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--text-primary)' }}
                   />
                 </div>
-                <button 
-                  type="submit" 
-                  className="btn-primary" 
+                <button
+                  type="submit"
+                  className="btn-primary"
                   disabled={isLoading}
                   style={{ marginTop: '0.5rem', opacity: isLoading ? 0.7 : 1 }}
                 >
                   {isLoading ? 'Signing in...' : 'Sign In'}
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => setShowAdminLogin(false)}
                   style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.5rem', cursor: 'pointer' }}
@@ -181,18 +203,18 @@ const Login = () => {
           <form onSubmit={handleProfileSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Full Name</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={providedName}
                 onChange={(e) => setProvidedName(e.target.value)}
-                placeholder="Enter your full name" 
-                required 
+                placeholder="Enter your full name"
+                required
                 style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--text-primary)' }}
               />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Role</label>
-              <select 
+              <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--text-primary)', appearance: 'none' }}
@@ -205,41 +227,50 @@ const Login = () => {
 
             <div>
               <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Department</label>
-              <select 
+              <select
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
                 style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--text-primary)', appearance: 'none' }}
               >
-                <option value="CSE" style={{ color: 'black' }}>CSE Department</option>
-                <option value="MCA" style={{ color: 'black' }}>MCA Department</option>
-                <option value="ECE" style={{ color: 'black' }}>ECE Department</option>
-                <option value="Placement Cell" style={{ color: 'black' }}>Placement Cell</option>
-                <option value="Examination Cell" style={{ color: 'black' }}>Examination Cell</option>
-                <option value="General" style={{ color: 'black' }}>General</option>
+                {departments.map((dept) => (
+                  <option key={dept._id} value={dept.code} style={{ color: 'black' }}>
+                    {dept.name}
+                  </option>
+                ))}
               </select>
             </div>
 
             {role === 'student' && (
               <div>
                 <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Roll Number</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={rollNo}
                   onChange={(e) => setRollNo(e.target.value)}
-                  placeholder="Enter your roll number" 
-                  required 
+                  placeholder="Enter your roll number"
+                  required
                   style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--text-primary)' }}
                 />
               </div>
             )}
 
-            <button 
-              type="submit" 
-              className="btn-primary" 
+            <button
+              type="submit"
+              className="btn-primary"
               disabled={isLoading}
               style={{ marginTop: '0.5rem', opacity: isLoading ? 0.7 : 1 }}
             >
               {isLoading ? 'Saving...' : 'Complete Profile'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRequireProfile(false);
+                setGoogleCred(null);
+              }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.5rem', cursor: 'pointer', display: 'block', margin: '0.5rem auto 0' }}
+            >
+              Back to Sign In
             </button>
           </form>
         )}

@@ -2,17 +2,8 @@ const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
 
-// Set up storage securely
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    // Save to the hidden storage folder (not publicly accessible)
-    cb(null, path.join(__dirname, '../storage'));
-  },
-  filename(req, file, cb) {
-    // Save physical file with a random UUID to prevent direct guessing
-    cb(null, `${crypto.randomUUID()}${path.extname(file.originalname)}`);
-  }
-});
+// Set up storage securely in memory for serverless cloud/local usage
+const storage = multer.memoryStorage();
 
 // Define file type limits for basic security
 const checkFileType = (file, cb) => {

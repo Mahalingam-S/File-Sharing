@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -15,7 +15,29 @@ const Register = () => {
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useContext(AuthContext);
+  const [departments, setDepartments] = useState([
+    { _id: '1', code: 'CSE', name: 'CSE Department' },
+    { _id: '2', code: 'MCA', name: 'MCA Department' },
+    { _id: '3', code: 'ECE', name: 'ECE Department' },
+    { _id: '4', code: 'Placement Cell', name: 'Placement Cell' },
+    { _id: '5', code: 'Examination Cell', name: 'Examination Cell' },
+    { _id: '6', code: 'General', name: 'General' }
+  ]);
+  const { register, api } = useContext(AuthContext);
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const res = await api.get('/departments');
+        if (res.data && Array.isArray(res.data)) {
+          setDepartments(res.data);
+        }
+      } catch (err) {
+        console.error('Error fetching departments:', err);
+      }
+    };
+    fetchDepartments();
+  }, [api]);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -154,12 +176,11 @@ const Register = () => {
                 onChange={handleChange}
                 style={{ paddingLeft: '1rem', appearance: 'none' }}
               >
-                <option value="CSE" style={{ color: 'black' }}>CSE Department</option>
-                <option value="MCA" style={{ color: 'black' }}>MCA Department</option>
-                <option value="ECE" style={{ color: 'black' }}>ECE Department</option>
-                <option value="Placement Cell" style={{ color: 'black' }}>Placement Cell</option>
-                <option value="Examination Cell" style={{ color: 'black' }}>Examination Cell</option>
-                <option value="General" style={{ color: 'black' }}>General</option>
+                {departments.map((dept) => (
+                  <option key={dept._id} value={dept.code} style={{ color: 'black' }}>
+                    {dept.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

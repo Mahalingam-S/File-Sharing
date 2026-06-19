@@ -3,7 +3,8 @@ import { AuthContext } from '../context/AuthContext';
 import { 
   Shield, Activity, Users, HardDrive, ArrowLeft, FileText, X, Download, 
   Trash2, CheckCircle, AlertCircle, Info, Mail, Clock, Calendar, Check,
-  UserCheck, Search, Bell, ChevronDown, MoreHorizontal, Layout, Settings, FileSpreadsheet
+  UserCheck, Search, Bell, ChevronDown, MoreHorizontal, Layout, Settings, FileSpreadsheet,
+  Pencil
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,8 +21,25 @@ const AdminDashboard = () => {
   const [errorMsg, setErrorMsg] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
   const [toast, setToast] = useState({ isOpen: false, message: '', type: 'info' });
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'users', 'files', 'logs', 'settings'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'users', 'files', 'logs', 'departments', 'help'
   const [searchVal, setSearchVal] = useState('');
+  
+  // Dynamic departments management state
+  const [departments, setDepartments] = useState([
+    { _id: '1', code: 'CSE', name: 'CSE Department', description: 'Computer Science & Engineering' },
+    { _id: '2', code: 'MCA', name: 'MCA Department', description: 'Master of Computer Applications' },
+    { _id: '3', code: 'ECE', name: 'ECE Department', description: 'Electronics & Communication Engineering' },
+    { _id: '4', code: 'Placement Cell', name: 'Placement Cell', description: 'Training & Placements' },
+    { _id: '5', code: 'Examination Cell', name: 'Examination Cell', description: 'Exams and Grading' },
+    { _id: '6', code: 'General', name: 'General', description: 'General Shared Drive' }
+  ]);
+  const [newDeptName, setNewDeptName] = useState('');
+  const [newDeptCode, setNewDeptCode] = useState('');
+  const [newDeptDesc, setNewDeptDesc] = useState('');
+  const [editingDept, setEditingDept] = useState(null);
+  const [editDeptName, setEditDeptName] = useState('');
+  const [editDeptCode, setEditDeptCode] = useState('');
+  const [editDeptDesc, setEditDeptDesc] = useState('');
 
   const showToast = (message, type = 'info') => {
     setToast({ isOpen: true, message, type });
@@ -31,23 +49,38 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchAdminData = async () => {
       try {
-        const [statsRes, logsRes, usersRes, helpRes] = await Promise.all([
-          api.get('/admin/stats'),
-          api.get('/admin/logs'),
-          api.get('/admin/users'),
-          api.get('/help/admin/requests')
+        const [statsRes, logsRes, usersRes, helpRes, deptsRes] = await Promise.all([
+          api.get(`/admin/stats?_t=${Date.now()}`),
+          api.get(`/admin/logs?_t=${Date.now()}`),
+          api.get(`/admin/users?_t=${Date.now()}`),
+          api.get(`/help/admin/requests?_t=${Date.now()}`),
+          api.get(`/departments?_t=${Date.now()}`)
         ]);
         setStats(statsRes?.data || { totalUsers: 0, totalFiles: 0, totalStorageBytes: '0 MB' });
         setLogs(logsRes?.data || []);
         setUsersList(usersRes?.data || []);
         setHelpRequests(helpRes?.data || []);
+        if (deptsRes?.data && Array.isArray(deptsRes.data)) {
+          setDepartments(deptsRes.data);
+        }
       } catch (error) {
         console.error('Error fetching admin data', error);
         setErrorMsg(error.message || 'Failed to load dashboard data');
       }
     };
+    
+    // Fetch immediately on mount
     fetchAdminData();
-  }, []);
+    
+    // Auto-refresh admin lists every 15 seconds
+    const intervalId = setInterval(fetchAdminData, 15000);
+    return () => clearInterval(intervalId);
+  }, [api]);
+
+  useEffect(() => {
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.scrollTop = 0;
+  }, [activeTab]);
 
   const handleViewUserFiles = async (userId, userName) => {
     try {
@@ -249,10 +282,270 @@ const AdminDashboard = () => {
     return '#a855f7'; // Purple
   };
 
+  const getUserAvatarColor = (role) => {
+    const r = role?.toLowerCase() || '';
+    if (r === 'admin') return 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)';
+    if (r === 'faculty') return 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)';
+    if (r === 'staff') return 'linear-gradient(135deg, #10b981 0%, #047857 100%)';
+    return 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'; // student/default
+  };
+
+  const getStatusColor = (status) => {
+    const s = status?.toLowerCase() || '';
+    if (s === 'resolved') return '#10b981';
+    if (s === 'in progress') return '#3b82f6';
+    return '#fbbf24'; // pending
+  };
+
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState('all');
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState('all');
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'department'
+  const [expandedDepts, setExpandedDepts] = useState({});
+  const [editingUser, setEditingUser] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    role: 'student',
+    department: 'General',
+    rollNo: ''
+  });
+
+  const toggleDeptExpand = (dept) => {
+    setExpandedDepts(prev => ({ ...prev, [dept]: !prev[dept] }));
+  };
+
+  const handleOpenEditModal = (userToEdit) => {
+    setEditingUser(userToEdit);
+    setEditForm({
+      name: userToEdit.name || '',
+      email: userToEdit.email || '',
+      role: userToEdit.role || 'student',
+      department: userToEdit.department || 'General',
+      rollNo: userToEdit.rollNo || ''
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditFormChange = (e) => {
+    const { name, value } = e.target;
+    setEditForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSaveChanges = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.patch(`/admin/users/${editingUser._id}`, editForm);
+      // Update local state
+      setUsersList(prev => prev.map(u => u._id === editingUser._id ? res.data.user : u));
+      showToast('User profile updated successfully', 'success');
+      setIsEditModalOpen(false);
+      setEditingUser(null);
+    } catch (error) {
+      showToast(error.response?.data?.message || 'Failed to update user', 'danger');
+    }
+  };
+
+  const handleCreateDept = async (e) => {
+    e.preventDefault();
+    if (!newDeptName || !newDeptCode) return;
+    try {
+      const res = await api.post('/departments', {
+        name: newDeptName,
+        code: newDeptCode,
+        description: newDeptDesc
+      });
+      setDepartments(prev => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)));
+      showToast('Department created successfully', 'success');
+      setNewDeptName('');
+      setNewDeptCode('');
+      setNewDeptDesc('');
+    } catch (error) {
+      showToast(error.response?.data?.message || 'Failed to create department', 'danger');
+    }
+  };
+
+  const handleUpdateDept = async (e) => {
+    e.preventDefault();
+    if (!editDeptName || !editDeptCode || !editingDept) return;
+    try {
+      const res = await api.put(`/departments/${editingDept._id}`, {
+        name: editDeptName,
+        code: editDeptCode,
+        description: editDeptDesc
+      });
+      setDepartments(prev => prev.map(d => d._id === editingDept._id ? res.data : d).sort((a, b) => a.name.localeCompare(b.name)));
+      showToast('Department updated successfully', 'success');
+      setEditingDept(null);
+      setEditDeptName('');
+      setEditDeptCode('');
+      setEditDeptDesc('');
+    } catch (error) {
+      showToast(error.response?.data?.message || 'Failed to update department', 'danger');
+    }
+  };
+
+  const handleDeleteDept = (deptId, name) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Department Workspace',
+      message: `Are you sure you want to delete the department: '${name}'? This will not delete users in the department, but it will remove it from registration lists.`,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/departments/${deptId}`);
+          setDepartments(departments.filter(d => d._id !== deptId));
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          showToast('Department deleted successfully', 'success');
+        } catch (error) {
+          showToast(error.response?.data?.message || 'Failed to delete department', 'danger');
+        }
+      }
+    });
+  };
+
+  const departmentsList = departments.map(d => d.code);
+
+  // Group all users by department and then role
+  const getDeptGroupedUsers = () => {
+    const groups = {};
+    departmentsList.forEach(dept => {
+      groups[dept] = {
+        students: [],
+        faculty: [],
+        staff: [],
+        totalCount: 0
+      };
+    });
+
+    usersList.forEach(u => {
+      if (!u) return;
+      const dept = u.department || 'General';
+      const role = u.role?.toLowerCase();
+      
+      // Ensure group exists
+      if (!groups[dept]) {
+        groups[dept] = { students: [], faculty: [], staff: [], totalCount: 0 };
+      }
+
+      if (role === 'student') {
+        groups[dept].students.push(u);
+      } else if (role === 'faculty') {
+        groups[dept].faculty.push(u);
+      } else if (role === 'staff') {
+        groups[dept].staff.push(u);
+      }
+      groups[dept].totalCount++;
+    });
+
+    return groups;
+  };
+
+  const renderDeptUserRow = (u) => {
+    return (
+      <div 
+        key={u._id}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 14px',
+          borderRadius: '12px',
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          gap: '10px',
+          transition: 'all 0.2s',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden', flexGrow: 1 }}>
+          <div style={{ 
+            width: '32px', 
+            height: '32px', 
+            borderRadius: '50%', 
+            background: getUserAvatarColor(u.role), 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            fontSize: '0.8rem', 
+            fontWeight: 'bold', 
+            color: 'white',
+            flexShrink: 0 
+          }}>
+            {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {u.rollNo ? (
+                <span style={{ fontSize: '0.75rem', color: '#22d3ee', fontWeight: '700' }}>{u.rollNo}</span>
+              ) : (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</span>
+              )}
+              {!u.isApproved && (
+                <span style={{ fontSize: '0.65rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', padding: '1px 5px', borderRadius: '4px', fontWeight: '700' }}>PENDING</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Small quick operations */}
+        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+          <button 
+            onClick={() => handleViewUserFiles(u._id, u.name)}
+            title="View User Files"
+            style={{ padding: '6px', background: 'rgba(34, 211, 238, 0.1)', border: '1px solid rgba(34, 211, 238, 0.25)', color: '#22d3ee', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <FileText size={12} />
+          </button>
+          
+          <button 
+            onClick={() => handleOpenEditModal(u)}
+            title="Edit Profile"
+            style={{ padding: '6px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', color: '#fbbf24', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Pencil size={12} />
+          </button>
+
+          {!u.isApproved && (
+            <button 
+              onClick={() => handleApproveUser(u._id)}
+              title="Approve Account"
+              style={{ padding: '6px', background: 'rgba(52, 211, 153, 0.1)', border: '1px solid rgba(52, 211, 153, 0.25)', color: '#34d399', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <UserCheck size={12} />
+            </button>
+          )}
+
+          {u.role !== 'admin' && (
+            <button 
+              onClick={() => handleDeleteUser(u._id)}
+              title="Remove User"
+              style={{ padding: '6px', background: 'rgba(248, 113, 113, 0.1)', border: '1px solid rgba(248, 113, 113, 0.25)', color: '#f87171', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const filteredUsers = usersList.filter(u => {
     if (!u) return false;
     const term = searchVal.toLowerCase();
-    return u.name?.toLowerCase().includes(term) || u.email?.toLowerCase().includes(term) || u.role?.toLowerCase().includes(term) || u.department?.toLowerCase().includes(term);
+    const matchesSearch = u.name?.toLowerCase().includes(term) || u.email?.toLowerCase().includes(term) || u.role?.toLowerCase().includes(term) || u.department?.toLowerCase().includes(term);
+    const matchesRole = selectedRoleFilter === 'all' ? true : u.role === selectedRoleFilter;
+    const matchesDept = selectedDeptFilter === 'all' ? true : u.department === selectedDeptFilter;
+    return matchesSearch && matchesRole && matchesDept;
+  });
+
+  const filteredFilesVaultUsers = usersList.filter(u => {
+    if (!u) return false;
+    const term = searchVal.toLowerCase();
+    return u.name?.toLowerCase().includes(term) || u.email?.toLowerCase().includes(term) || u.department?.toLowerCase().includes(term);
   });
 
   const filteredLogs = logs.filter(l => {
@@ -307,6 +600,10 @@ const AdminDashboard = () => {
             <Mail size={18} />
             <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Support Center</span>
           </div>
+          <div className={`sidebar-item ${activeTab === 'departments' ? 'active' : ''}`} onClick={() => setActiveTab('departments')}>
+            <Settings size={18} />
+            <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Departments</span>
+          </div>
         </nav>
 
         {/* Bottom Exit Button */}
@@ -332,7 +629,7 @@ const AdminDashboard = () => {
         <header className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', width: '100%', gap: '1.25rem' }}>
           
           <h2 style={{ fontSize: '1.25rem', fontWeight: '800', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-primary)' }}>
-            {activeTab === 'dashboard' ? 'Platform Overview' : (activeTab === 'users' ? 'Users Management' : (activeTab === 'files' ? 'Files Directory' : (activeTab === 'logs' ? 'Security Audit Logs' : 'Support Tickets')))}
+            {activeTab === 'dashboard' ? 'Platform Overview' : (activeTab === 'users' ? 'Users Management' : (activeTab === 'files' ? 'Files Directory' : (activeTab === 'logs' ? 'Security Audit Logs' : (activeTab === 'departments' ? 'Departments Management' : 'Support Tickets'))))}
           </h2>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
@@ -445,7 +742,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Middle Deck: Approvals & Audit logs (Two Columns) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', minHeight: '340px' }}>
+            <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', minHeight: '340px' }}>
               
               {/* Left Column: User Approval Controls */}
               <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column' }}>
@@ -598,7 +895,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Bottom Analytics Deck: Activity volumes & Severity Distributions */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '1.5rem' }}>
+            <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
               
               {/* Left Column: Activity Volumes */}
               <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -743,87 +1040,383 @@ const AdminDashboard = () => {
         {/* Tab 2: Users Management view */}
         {activeTab === 'users' && (
           <div className="glass-panel" style={{ padding: '2rem', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '1rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)' }}>Registered Users Directory</h2>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', background: 'var(--glass-bg-hover)', padding: '4px 12px', borderRadius: '10px', fontWeight: '600' }}>
-                {filteredUsers.length} Users Found
-              </span>
-            </div>
-
-            <div style={{ overflowX: 'auto', background: 'rgba(255, 255, 255, 0.02)', padding: '6px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {/* Headers */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.8fr 1fr 1fr 1.6fr', padding: '10px 1rem', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  <div>User Name</div>
-                  <div>Email Address</div>
-                  <div>Role Status</div>
-                  <div>Joined Date</div>
-                  <div style={{ textAlign: 'right', paddingRight: '1rem' }}>Directory Operations</div>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)' }}>Registered Users Directory</h2>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Manage role status, department workspaces, and view files department-wise.</p>
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                {/* Visual View Switcher segmented selector */}
+                <div style={{ display: 'flex', background: 'rgba(15, 23, 42, 0.6)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <button 
+                    onClick={() => setViewMode('list')}
+                    className="row-action-btn"
+                    style={{
+                      padding: '6px 14px',
+                      fontSize: '0.8rem',
+                      fontWeight: '700',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      border: 'none',
+                      color: viewMode === 'list' ? '#22d3ee' : 'var(--text-secondary)',
+                      background: viewMode === 'list' ? 'rgba(34, 211, 238, 0.12)' : 'transparent',
+                      transition: 'all 0.2s',
+                      boxShadow: viewMode === 'list' ? '0 2px 8px rgba(34,211,238,0.1)' : 'none'
+                    }}
+                  >
+                    List View
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('department')}
+                    className="row-action-btn"
+                    style={{
+                      padding: '6px 14px',
+                      fontSize: '0.8rem',
+                      fontWeight: '700',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      border: 'none',
+                      color: viewMode === 'department' ? '#22d3ee' : 'var(--text-secondary)',
+                      background: viewMode === 'department' ? 'rgba(34, 211, 238, 0.12)' : 'transparent',
+                      transition: 'all 0.2s',
+                      boxShadow: viewMode === 'department' ? '0 2px 8px rgba(34,211,238,0.1)' : 'none'
+                    }}
+                  >
+                    Department Split
+                  </button>
                 </div>
 
-                {filteredUsers.map(u => (
-                  <div 
-                    key={u._id}
-                    className="explorer-row"
-                    style={{ gridTemplateColumns: '1.5fr 1.8fr 1fr 1fr 1.6fr', padding: '12px 1rem', cursor: 'default' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: getUserAvatarColor(u.role), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 'bold', color: 'white', flexShrink: 0 }}>
-                        {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                        <span style={{ fontWeight: '600', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</span>
-                        {u.rollNo && <span style={{ fontSize: '0.7rem', color: '#22d3ee', fontWeight: '500' }}>{u.rollNo}</span>}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {u.email}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <span style={{ 
-                        background: u.role === 'admin' ? 'rgba(239, 68, 68, 0.15)' : u.role === 'faculty' ? 'rgba(245, 158, 11, 0.15)' : u.role === 'staff' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)', 
-                        color: u.role === 'admin' ? '#ef4444' : u.role === 'faculty' ? '#fbbf24' : u.role === 'staff' ? '#10b981' : '#3b82f6',
-                        padding: '3px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase', border: `1px solid ${u.role === 'admin' ? 'rgba(239,68,68,0.25)' : u.role === 'faculty' ? 'rgba(245,158,11,0.25)' : u.role === 'staff' ? 'rgba(16,185,129,0.25)' : 'rgba(59,130,246,0.25)'}`
-                      }}>
-                        {u.role}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
-                      {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                      <button 
-                        onClick={() => handleViewUserFiles(u._id, u.name)}
-                        className="row-action-btn"
-                        style={{ padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.75rem', color: '#22d3ee', background: 'rgba(34, 211, 238, 0.12)', borderColor: 'rgba(34, 211, 238, 0.35)', borderRadius: '8px', fontWeight: '500' }}
-                      >
-                        <FileText size={12} /> View Files
-                      </button>
-                      
-                      {u.role !== 'admin' && (
-                        <button 
-                          onClick={() => handleDeleteUser(u._id)}
-                          className="row-action-btn"
-                          style={{ padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.75rem', color: '#f87171', background: 'rgba(248, 113, 113, 0.12)', borderColor: 'rgba(248, 113, 113, 0.35)', borderRadius: '8px', fontWeight: '500' }}
-                        >
-                          <Trash2 size={12} /> Remove
-                        </button>
-                      )}
-                      
-                      {!u.isApproved && (
-                        <button 
-                          onClick={() => handleApproveUser(u._id)}
-                          className="row-action-btn"
-                          style={{ padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.75rem', color: '#34d399', background: 'rgba(52, 211, 153, 0.12)', borderColor: 'rgba(52, 211, 153, 0.35)', borderRadius: '8px', fontWeight: '600' }}
-                        >
-                          <UserCheck size={12} /> Approve
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', background: 'var(--glass-bg-hover)', padding: '4px 12px', borderRadius: '10px', fontWeight: '600' }}>
+                  {filteredUsers.length} Users Found
+                </span>
               </div>
             </div>
+
+            {/* List View rendering mode */}
+            {viewMode === 'list' && (
+              <>
+                {/* Filter Toolbar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                  {/* Role filter buttons */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {['all', 'faculty', 'staff', 'student'].map(r => (
+                      <button 
+                        key={r}
+                        onClick={() => setSelectedRoleFilter(r)}
+                        className="row-action-btn"
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '0.8rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          borderRadius: '10px',
+                          color: selectedRoleFilter === r ? '#ffffff' : 'var(--text-secondary)',
+                          background: selectedRoleFilter === r ? 'linear-gradient(135deg, #22d3ee 0%, #3b82f6 100%)' : 'rgba(255,255,255,0.04)',
+                          border: selectedRoleFilter === r ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                          boxShadow: selectedRoleFilter === r ? '0 4px 12px rgba(34,211,238,0.25)' : 'none',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {r === 'all' ? 'All Roles' : r + 's'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Department Dropdown Filter */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Workspace:</span>
+                    <select 
+                      value={selectedDeptFilter}
+                      onChange={(e) => setSelectedDeptFilter(e.target.value)}
+                      style={{
+                        padding: '8px 16px',
+                        fontSize: '0.8rem',
+                        fontWeight: '700',
+                        color: '#ffffff',
+                        background: 'rgba(15, 23, 42, 0.6)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: '10px',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        minWidth: '180px'
+                      }}
+                    >
+                      <option value="all" style={{ color: 'black' }}>All Workspaces</option>
+                      {departments.map((dept) => (
+                        <option key={dept._id} value={dept.code} style={{ color: 'black' }}>
+                          {dept.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto', background: 'rgba(255, 255, 255, 0.02)', padding: '6px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {/* Headers */}
+                    <div className="admin-table-header" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr 0.9fr 0.9fr 1.8fr', padding: '10px 1rem', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      <div>User Name</div>
+                      <div>Email Address</div>
+                      <div>Role Status</div>
+                      <div>Joined Date</div>
+                      <div style={{ textAlign: 'right', paddingRight: '1rem' }}>Directory Operations</div>
+                    </div>
+
+                    {filteredUsers.map(u => (
+                      <div 
+                        key={u._id}
+                        className="explorer-row admin-users-row"
+                        style={{ gridTemplateColumns: '1.4fr 1.6fr 0.9fr 0.9fr 1.8fr', padding: '12px 1rem', cursor: 'default' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: getUserAvatarColor(u.role), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 'bold', color: 'white', flexShrink: 0 }}>
+                            {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                            <span style={{ fontWeight: '600', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                              <span style={{ fontSize: '0.7rem', color: '#22d3ee', fontWeight: '600', textTransform: 'uppercase' }}>
+                                {u.department || 'General'}
+                              </span>
+                              {u.rollNo && (
+                                <>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>•</span>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: '500' }}>{u.rollNo}</span>
+                                </>
+                              )}
+                            </div>
+                            <span className="mobile-only-info" style={{ display: 'none', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                              {u.department || 'General'} • {u.email}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {u.email}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <span style={{ 
+                            background: u.role === 'admin' ? 'rgba(239, 68, 68, 0.15)' : u.role === 'faculty' ? 'rgba(245, 158, 11, 0.15)' : u.role === 'staff' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)', 
+                            color: u.role === 'admin' ? '#ef4444' : u.role === 'faculty' ? '#fbbf24' : u.role === 'staff' ? '#10b981' : '#3b82f6',
+                            padding: '3px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase', border: `1px solid ${u.role === 'admin' ? 'rgba(239,68,68,0.25)' : u.role === 'faculty' ? 'rgba(245,158,11,0.25)' : u.role === 'staff' ? 'rgba(16,185,129,0.25)' : 'rgba(59,130,246,0.25)'}`
+                          }}>
+                            {u.role}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+                          {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                          <button 
+                            onClick={() => handleViewUserFiles(u._id, u.name)}
+                            className="row-action-btn"
+                            style={{ padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.75rem', color: '#22d3ee', background: 'rgba(34, 211, 238, 0.12)', borderColor: 'rgba(34, 211, 238, 0.35)', borderRadius: '8px', fontWeight: '500' }}
+                          >
+                            <FileText size={12} /> <span>Files</span>
+                          </button>
+
+                          {u.role !== 'admin' && (
+                            <button 
+                              onClick={() => handleOpenEditModal(u)}
+                              className="row-action-btn"
+                              style={{ padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.75rem', color: '#fbbf24', background: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.35)', borderRadius: '8px', fontWeight: '500' }}
+                            >
+                              <Pencil size={12} /> <span>Edit</span>
+                            </button>
+                          )}
+                          
+                          {u.role !== 'admin' && (
+                            <button 
+                              onClick={() => handleDeleteUser(u._id)}
+                              className="row-action-btn"
+                              style={{ padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.75rem', color: '#f87171', background: 'rgba(248, 113, 113, 0.12)', borderColor: 'rgba(248, 113, 113, 0.35)', borderRadius: '8px', fontWeight: '500' }}
+                            >
+                              <Trash2 size={12} /> <span>Remove</span>
+                            </button>
+                          )}
+                          
+                          {!u.isApproved && (
+                            <button 
+                              onClick={() => handleApproveUser(u._id)}
+                              className="row-action-btn"
+                              style={{ padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.75rem', color: '#34d399', background: 'rgba(52, 211, 153, 0.12)', borderColor: 'rgba(52, 211, 153, 0.35)', borderRadius: '8px', fontWeight: '600' }}
+                            >
+                              <UserCheck size={12} /> <span>Approve</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Department Card View rendering mode */}
+            {viewMode === 'department' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem' }}>
+                {departmentsList.map(dept => {
+                  const groups = getDeptGroupedUsers();
+                  const deptData = groups[dept] || { students: [], faculty: [], staff: [], totalCount: 0 };
+                  const isExpanded = !!expandedDepts[dept];
+
+                  return (
+                    <div 
+                      key={dept} 
+                      className="glass-panel" 
+                      style={{ 
+                        borderRadius: '20px', 
+                        border: '1px solid rgba(255,255,255,0.06)', 
+                        background: 'rgba(15, 23, 42, 0.3)',
+                        overflow: 'hidden',
+                        transition: 'all 0.3s'
+                      }}
+                    >
+                      {/* Dept Header Card */}
+                      <div 
+                        onClick={() => toggleDeptExpand(dept)}
+                        style={{ 
+                          padding: '1.25rem 1.5rem', 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          cursor: 'pointer',
+                          background: isExpanded ? 'rgba(34, 211, 238, 0.04)' : 'transparent',
+                          transition: 'background 0.2s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                          {/* Circle Badge with Glowing Dept Initials */}
+                          <div style={{ 
+                            width: '42px', 
+                            height: '42px', 
+                            borderRadius: '12px', 
+                            background: 'linear-gradient(135deg, rgba(34, 211, 238, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%)', 
+                            border: '1px solid rgba(34, 211, 238, 0.3)',
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            color: '#22d3ee',
+                            fontWeight: '800',
+                            fontSize: '0.9rem',
+                            letterSpacing: '0.05em'
+                          }}>
+                            {dept.substring(0, 3).toUpperCase()}
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span style={{ fontSize: '1.05rem', fontWeight: '750', color: 'var(--text-primary)' }}>
+                              {dept} Workspace
+                            </span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                              {deptData.totalCount} registered members in this department
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Counts & Expand indicator */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                          {/* Segmented counts */}
+                          <div className="stats-badges" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: '700', padding: '4px 10px', borderRadius: '8px', color: '#3b82f6', background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                              {deptData.students.length} Students
+                            </span>
+                            <span style={{ fontSize: '0.7rem', fontWeight: '700', padding: '4px 10px', borderRadius: '8px', color: '#fbbf24', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                              {deptData.faculty.length} Faculty
+                            </span>
+                            <span style={{ fontSize: '0.7rem', fontWeight: '700', padding: '4px 10px', borderRadius: '8px', color: '#10b981', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                              {deptData.staff.length} Staff
+                            </span>
+                          </div>
+
+                          <motion.div
+                            animate={{ rotate: isExpanded ? 180 : 0 }}
+                            transition={{ duration: 0.2 }}
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            <ChevronDown size={20} />
+                          </motion.div>
+                        </div>
+                      </div>
+
+                      {/* Collapsible Content */}
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25 }}
+                            style={{ overflow: 'hidden' }}
+                          >
+                            <div style={{ padding: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(15, 23, 42, 0.2)' }}>
+                              
+                              {deptData.totalCount === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                  No members registered under this department workspace.
+                                </div>
+                              ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+                                  
+                                  {/* Column 1: Faculty */}
+                                  <div style={{ background: 'rgba(255, 255, 255, 0.01)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.03)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '8px' }}>
+                                      <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Faculty Members</span>
+                                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: '6px' }}>{deptData.faculty.length}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }}>
+                                      {deptData.faculty.length === 0 ? (
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '8px 0' }}>None registered.</span>
+                                      ) : (
+                                        deptData.faculty.map(u => renderDeptUserRow(u))
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Column 2: Staff */}
+                                  <div style={{ background: 'rgba(255, 255, 255, 0.01)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.03)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '8px' }}>
+                                      <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Staff Members</span>
+                                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: '6px' }}>{deptData.staff.length}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }}>
+                                      {deptData.staff.length === 0 ? (
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '8px 0' }}>None registered.</span>
+                                      ) : (
+                                        deptData.staff.map(u => renderDeptUserRow(u))
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Column 3: Students */}
+                                  <div style={{ background: 'rgba(255, 255, 255, 0.01)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.03)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '8px' }}>
+                                      <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Students</span>
+                                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'rgba(59,130,246,0.1)', padding: '2px 8px', borderRadius: '6px' }}>{deptData.students.length}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }}>
+                                      {deptData.students.length === 0 ? (
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '8px 0' }}>None registered.</span>
+                                      ) : (
+                                        deptData.students.map(u => renderDeptUserRow(u))
+                                      )}
+                                    </div>
+                                  </div>
+
+                                </div>
+                              )}
+
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -835,26 +1428,144 @@ const AdminDashboard = () => {
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Select a user from the directory below to view and audit their personal file vault.</p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
-              {usersList.map(u => (
-                <div 
-                  key={u._id}
-                  onClick={() => handleViewUserFiles(u._id, u.name)}
-                  className="glass-panel"
-                  style={{ padding: '1.25rem', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)', transition: 'transform 0.2s, background-color 0.2s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = 'rgba(255,255,255,0.01)'; }}
-                >
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: getUserAvatarColor(u.role), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                    {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
-                  </div>
-                  <div style={{ flexGrow: 1, overflow: 'hidden' }}>
-                    <h4 style={{ margin: 0, fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</h4>
-                    <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</p>
-                    <span style={{ display: 'inline-block', fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: '#22d3ee', marginTop: '4px', letterSpacing: '0.05em' }}>{u.role}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {/* Faculty Section */}
+              {filteredFilesVaultUsers.filter(u => u.role === 'faculty').length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '1rem', color: '#fbbf24', borderLeft: '4px solid #fbbf24', paddingLeft: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>Faculty Vaults</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: '6px', fontWeight: '600' }}>
+                      {filteredFilesVaultUsers.filter(u => u.role === 'faculty').length}
+                    </span>
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                    {filteredFilesVaultUsers.filter(u => u.role === 'faculty').map(u => (
+                      <div 
+                        key={u._id}
+                        onClick={() => handleViewUserFiles(u._id, u.name)}
+                        className="glass-panel"
+                        style={{ padding: '1.25rem', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)', transition: 'transform 0.2s, background-color 0.2s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = 'rgba(255,255,255,0.01)'; }}
+                      >
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                          {u.name ? u.name.charAt(0).toUpperCase() : 'F'}
+                        </div>
+                        <div style={{ flexGrow: 1, overflow: 'hidden' }}>
+                          <h4 style={{ margin: 0, fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</h4>
+                          <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</p>
+                          <span style={{ display: 'inline-block', fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: '#fbbf24', marginTop: '4px', letterSpacing: '0.05em' }}>{u.department}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
+              )}
+
+              {/* Staff Section */}
+              {filteredFilesVaultUsers.filter(u => u.role === 'staff').length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '1rem', color: '#10b981', borderLeft: '4px solid #10b981', paddingLeft: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>Staff Vaults</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: '6px', fontWeight: '600' }}>
+                      {filteredFilesVaultUsers.filter(u => u.role === 'staff').length}
+                    </span>
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                    {filteredFilesVaultUsers.filter(u => u.role === 'staff').map(u => (
+                      <div 
+                        key={u._id}
+                        onClick={() => handleViewUserFiles(u._id, u.name)}
+                        className="glass-panel"
+                        style={{ padding: '1.25rem', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)', transition: 'transform 0.2s, background-color 0.2s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = 'rgba(255,255,255,0.01)'; }}
+                      >
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                          {u.name ? u.name.charAt(0).toUpperCase() : 'S'}
+                        </div>
+                        <div style={{ flexGrow: 1, overflow: 'hidden' }}>
+                          <h4 style={{ margin: 0, fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</h4>
+                          <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</p>
+                          <span style={{ display: 'inline-block', fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: '#10b981', marginTop: '4px', letterSpacing: '0.05em' }}>{u.department}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Student Section */}
+              {filteredFilesVaultUsers.filter(u => u.role === 'student').length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '1rem', color: '#3b82f6', borderLeft: '4px solid #3b82f6', paddingLeft: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>Student Vaults</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: '6px', fontWeight: '600' }}>
+                      {filteredFilesVaultUsers.filter(u => u.role === 'student').length}
+                    </span>
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                    {filteredFilesVaultUsers.filter(u => u.role === 'student').map(u => (
+                      <div 
+                        key={u._id}
+                        onClick={() => handleViewUserFiles(u._id, u.name)}
+                        className="glass-panel"
+                        style={{ padding: '1.25rem', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)', transition: 'transform 0.2s, background-color 0.2s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = 'rgba(255,255,255,0.01)'; }}
+                      >
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                          {u.name ? u.name.charAt(0).toUpperCase() : 'S'}
+                        </div>
+                        <div style={{ flexGrow: 1, overflow: 'hidden' }}>
+                          <h4 style={{ margin: 0, fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</h4>
+                          <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</p>
+                          <span style={{ display: 'inline-block', fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: '#3b82f6', marginTop: '4px', letterSpacing: '0.05em' }}>{u.department}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Admin Section (Fallback / System Auditing) */}
+              {filteredFilesVaultUsers.filter(u => u.role === 'admin').length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '1rem', color: '#ef4444', borderLeft: '4px solid #ef4444', paddingLeft: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>Administrator Vaults</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: '6px', fontWeight: '600' }}>
+                      {filteredFilesVaultUsers.filter(u => u.role === 'admin').length}
+                    </span>
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                    {filteredFilesVaultUsers.filter(u => u.role === 'admin').map(u => (
+                      <div 
+                        key={u._id}
+                        onClick={() => handleViewUserFiles(u._id, u.name)}
+                        className="glass-panel"
+                        style={{ padding: '1.25rem', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)', transition: 'transform 0.2s, background-color 0.2s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = 'rgba(255,255,255,0.01)'; }}
+                      >
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                          {u.name ? u.name.charAt(0).toUpperCase() : 'A'}
+                        </div>
+                        <div style={{ flexGrow: 1, overflow: 'hidden' }}>
+                          <h4 style={{ margin: 0, fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</h4>
+                          <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</p>
+                          <span style={{ display: 'inline-block', fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: '#ef4444', marginTop: '4px', letterSpacing: '0.05em' }}>System Admin</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {filteredFilesVaultUsers.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No users matching your search filters were found.</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -876,7 +1587,7 @@ const AdminDashboard = () => {
             <div style={{ overflowX: 'auto', background: 'rgba(255, 255, 255, 0.02)', padding: '6px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.04)' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {/* Headers */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.2fr 1.4fr 1fr 1fr 0.4fr', padding: '10px 1rem', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div className="admin-table-header" style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.2fr 1.4fr 1fr 1fr 0.4fr', padding: '10px 1rem', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   <div>Time Logged</div>
                   <div>IP Address</div>
                   <div>Operator User</div>
@@ -890,7 +1601,7 @@ const AdminDashboard = () => {
                   return (
                     <div 
                       key={log._id}
-                      className="explorer-row"
+                      className="explorer-row admin-logs-row"
                       style={{ gridTemplateColumns: '1.3fr 1.2fr 1.4fr 1fr 1fr 0.4fr', padding: '12px 1rem', cursor: 'default' }}
                     >
                       <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
@@ -899,8 +1610,11 @@ const AdminDashboard = () => {
                       <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
                         {log.ipAddress || '192.168.1.110'}
                       </div>
-                      <div style={{ fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {log.userId?.email || 'System Master'}
+                      <div style={{ fontWeight: '600', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', overflow: 'hidden', justifyContent: 'center' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.userId?.email || 'System Master'}</span>
+                        <span className="mobile-only-info" style={{ display: 'none', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px', fontWeight: 'normal' }}>
+                          {log.createdAt ? new Date(log.createdAt).toLocaleString() : 'Unknown'} • {log.ipAddress || '192.168.1.110'}
+                        </span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center' }}>
                         <span style={{ fontSize: '0.8rem', fontWeight: '700', color: getLogActionColor(log.action) }}>
@@ -1016,6 +1730,152 @@ const AdminDashboard = () => {
           </div>
         )}
 
+        {/* Tab 6: Departments Management */}
+        {activeTab === 'departments' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="glass-panel" style={{ padding: '2rem', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '1rem' }}>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)' }}>Departments & Academic Workspaces</h2>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Add or update department categories that isolate document drives.</p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+                {/* Form card */}
+                <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', padding: '1.5rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1rem', height: 'fit-content' }}>
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#22d3ee', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {editingDept ? 'Edit Workspace Record' : 'Create New Department'}
+                  </h3>
+
+                  <form onSubmit={editingDept ? handleUpdateDept : handleCreateDept} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Department Name</label>
+                      <input 
+                        type="text" 
+                        value={editingDept ? editDeptName : newDeptName}
+                        onChange={(e) => editingDept ? setEditDeptName(e.target.value) : setNewDeptName(e.target.value)}
+                        placeholder="e.g. Mechanical Engineering"
+                        required
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Short Code (Workspace ID)</label>
+                      <input 
+                        type="text" 
+                        value={editingDept ? editDeptCode : newDeptCode}
+                        onChange={(e) => editingDept ? setEditDeptCode(e.target.value) : setNewDeptCode(e.target.value)}
+                        placeholder="e.g. ME"
+                        required
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--text-primary)', outline: 'none' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Description</label>
+                      <textarea 
+                        value={editingDept ? editDeptDesc : newDeptDesc}
+                        onChange={(e) => editingDept ? setEditDeptDesc(e.target.value) : setNewDeptDesc(e.target.value)}
+                        placeholder="Describe target group..."
+                        rows="3"
+                        style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {editingDept && (
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setEditingDept(null);
+                            setEditDeptName('');
+                            setEditDeptCode('');
+                            setEditDeptDesc('');
+                          }}
+                          className="glass-panel" 
+                          style={{ flex: 1, padding: '10px', color: '#ffffff', cursor: 'pointer', borderRadius: '8px' }}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      <button 
+                        type="submit" 
+                        className="btn-primary" 
+                        style={{ flex: 1, padding: '10px', background: 'linear-gradient(135deg, #22d3ee 0%, #3b82f6 100%)', color: '#ffffff', border: 'none', cursor: 'pointer', borderRadius: '8px' }}
+                      >
+                        {editingDept ? 'Save Updates' : 'Add Workspace'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* List card */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Active Workspaces ({departments.length})
+                  </h3>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto' }}>
+                    {departments.map(dept => (
+                      <div 
+                        key={dept._id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '12px 1rem',
+                          borderRadius: '12px',
+                          background: 'rgba(255,255,255,0.02)',
+                          border: '1px solid rgba(255,255,255,0.05)',
+                          gap: '10px'
+                        }}
+                      >
+                        <div style={{ overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: '800', background: 'rgba(34, 211, 238, 0.1)', color: '#22d3ee', border: '1px solid rgba(34,211,238,0.2)', padding: '2px 6px', borderRadius: '4px' }}>
+                              {dept.code}
+                            </span>
+                            <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>{dept.name}</span>
+                          </div>
+                          {dept.description && (
+                            <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {dept.description}
+                            </p>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                          <button 
+                            onClick={() => {
+                              setEditingDept(dept);
+                              setEditDeptName(dept.name);
+                              setEditDeptCode(dept.code);
+                              setEditDeptDesc(dept.description || '');
+                            }}
+                            title="Edit"
+                            style={{ padding: '6px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', color: '#fbbf24', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          {dept.code !== 'GENERAL' && (
+                            <button 
+                              onClick={() => handleDeleteDept(dept._id, dept.name)}
+                              title="Remove"
+                              style={{ padding: '6px', background: 'rgba(248, 113, 113, 0.1)', border: '1px solid rgba(248, 113, 113, 0.25)', color: '#f87171', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* User Files Modal */}
@@ -1046,7 +1906,7 @@ const AdminDashboard = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   
                   {/* Modal Header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1.2fr', padding: '8px 1rem', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <div className="admin-table-header" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1.2fr', padding: '8px 1rem', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     <div>File Details</div>
                     <div>File Size</div>
                     <div style={{ textAlign: 'right', paddingRight: '0.5rem' }}>Operations</div>
@@ -1056,7 +1916,7 @@ const AdminDashboard = () => {
                   {selectedUserFiles.map(file => (
                     <div 
                       key={file._id} 
-                      className="explorer-row" 
+                      className="explorer-row admin-modal-files-row"
                       style={{ gridTemplateColumns: '1.5fr 1fr 1.2fr', padding: '12px 1rem', cursor: 'default' }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
@@ -1065,6 +1925,9 @@ const AdminDashboard = () => {
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                           <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={file.originalName}>{file.originalName}</span>
+                          <span className="mobile-only-info" style={{ display: 'none', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                            {(file.sizeBytes / 1024 / 1024).toFixed(2)} MB
+                          </span>
                           {file.isVerified && <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px' }}><Check size={10} strokeWidth={3} /> Official Document</span>}
                         </div>
                       </div>
@@ -1074,14 +1937,7 @@ const AdminDashboard = () => {
                       </div>
                       
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
-                        <button 
-                          onClick={() => handleDownloadUserFile(file._id, file.originalName)}
-                          className="row-action-btn"
-                          style={{ padding: '6px', color: '#34d399', background: 'rgba(52, 211, 153, 0.1)', borderColor: 'rgba(52, 211, 153, 0.25)', borderRadius: '6px', cursor: 'pointer' }}
-                          title="Download File"
-                        >
-                          <Download size={14} />
-                        </button>
+                        {/* Privacy protection: Admin cannot download personal files */}
                         
                         <button 
                           onClick={() => handleVerifyFile(file._id)}
@@ -1105,6 +1961,130 @@ const AdminDashboard = () => {
                   ))}
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* User Profile Edit Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && editingUser && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="glass-panel" 
+              style={{ maxWidth: '500px', width: '100%', padding: '2.5rem', position: 'relative', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(15, 23, 42, 0.95)' }}
+            >
+              <button 
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingUser(null);
+                }} 
+                style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', border: 'none' }} 
+                title="Close Modal"
+              >
+                <X size={22} />
+              </button>
+              
+              <h2 style={{ marginBottom: '1.5rem', fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-primary)' }}>
+                <Pencil color="#fbbf24" size={20} /> Edit User Directory Record
+              </h2>
+
+              <form onSubmit={handleSaveChanges} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Full Name</label>
+                  <input 
+                    type="text" 
+                    name="name"
+                    value={editForm.name}
+                    onChange={handleEditFormChange}
+                    required 
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-primary)', outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Email Address</label>
+                  <input 
+                    type="email" 
+                    name="email"
+                    value={editForm.email}
+                    onChange={handleEditFormChange}
+                    required 
+                    style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-primary)', outline: 'none' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Account Role</label>
+                    <select 
+                      name="role"
+                      value={editForm.role}
+                      onChange={handleEditFormChange}
+                      style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'rgba(15, 23, 42, 0.9)', color: 'var(--text-primary)', outline: 'none', appearance: 'none', cursor: 'pointer' }}
+                    >
+                      <option value="student" style={{ color: 'black' }}>Student</option>
+                      <option value="faculty" style={{ color: 'black' }}>Faculty</option>
+                      <option value="staff" style={{ color: 'black' }}>Staff</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Department Workspace</label>
+                    <select 
+                      name="department"
+                      value={editForm.department}
+                      onChange={handleEditFormChange}
+                      style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'rgba(15, 23, 42, 0.9)', color: 'var(--text-primary)', outline: 'none', appearance: 'none', cursor: 'pointer' }}
+                    >
+                      {departments.map((dept) => (
+                        <option key={dept._id} value={dept.code} style={{ color: 'black' }}>
+                          {dept.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {editForm.role === 'student' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontWeight: '600' }}>Roll Number</label>
+                    <input 
+                      type="text" 
+                      name="rollNo"
+                      value={editForm.rollNo}
+                      onChange={handleEditFormChange}
+                      placeholder="e.g. AM.EN.U4CSE21001" 
+                      required={editForm.role === 'student'}
+                      style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-primary)', outline: 'none' }}
+                    />
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1.25rem' }}>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setIsEditModalOpen(false);
+                      setEditingUser(null);
+                    }}
+                    className="glass-panel"
+                    style={{ flex: 1, padding: '12px', cursor: 'pointer', border: '1px solid var(--glass-border)', color: '#ffffff', fontWeight: '600', borderRadius: '10px' }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className="btn-primary"
+                    style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)', border: 'none', color: '#ffffff', fontWeight: '600', borderRadius: '10px', boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)' }}
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

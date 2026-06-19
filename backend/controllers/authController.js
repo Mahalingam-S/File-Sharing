@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const fs = require('fs');
 const path = require('path');
+const { deleteFromStorage } = require('../utils/storage');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -56,7 +57,7 @@ const registerUser = async (req, res) => {
     const normalizedEmail = email.toLowerCase();
 
     // Domain Restrictions
-    if (normalizedEmail === 's_mahalingam@cb.amrita.edu' || normalizedEmail === 's_mahalingam@gmail.com') {
+    if (normalizedEmail === 's_mahalingam') {
       role = 'admin'; // Auto-promote the Master Admin
     } else if (role === 'faculty') {
       // Temporarily use @gmail.com. Later we need to use conditions like @cb.amrita.edu
@@ -191,7 +192,7 @@ const googleLogin = async (req, res) => {
 
     // Check domain restrictions
     let finalRole = role;
-    if (email === 's_mahalingam@cb.amrita.edu' || email === 's_mahalingam@gmail.com') {
+    if (email === 's_mahalingam') {
       finalRole = 'admin';
     } else if (finalRole === 'faculty') {
       if (!email.endsWith('@gmail.com')) {
@@ -278,8 +279,7 @@ const deleteMe = async (req, res) => {
     // Physical file deletion
     const files = await File.find({ ownerId: user._id });
     for (const file of files) {
-      const filePath = path.join(__dirname, '../storage', file.storageName);
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      await deleteFromStorage(file.storageName);
     }
 
     // Log the deletion with the reason

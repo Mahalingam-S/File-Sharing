@@ -3,6 +3,7 @@ const File = require('../models/File');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { deleteFromStorage } = require('../utils/storage');
 
 // @desc    Get all folders and files for the current folder level
 // @route   GET /api/folders/:parentId?
@@ -11,25 +12,49 @@ const getFolderContents = async (req, res) => {
   try {
     const parentId = req.params.parentId === 'root' ? null : (req.params.parentId || null);
 
-    const folders = await Folder.find({ 
-      parentId,
-      $or: [
+    let folderQuery = { parentId };
+    if (!parentId) {
+      // At the root level, only show folders owned by the current user (My Files)
+      folderQuery.ownerId = req.user._id;
+    } else {
+      // Inside a subfolder, show folders owned by the user OR public to their department (fallback to 'General' to prevent leaks)
+      folderQuery.$or = [
         { ownerId: req.user._id },
-        { department: req.user.department, isPublicToDepartment: true }
-      ]
-    }).sort({ name: 1 });
+        { department: req.user.department || 'General', isPublicToDepartment: true }
+      ];
+    }
 
-    const files = await File.find({ 
-      folderId: parentId,
-      $or: [
+    const folders = await Folder.find(folderQuery).sort({ name: 1 });
+
+    let fileQuery = { folderId: parentId };
+    if (!parentId) {
+      // At the root level, only show files owned by the current user (My Files)
+      fileQuery.ownerId = req.user._id;
+    } else {
+      // Inside a subfolder, show files owned by the user OR public to their department (fallback to 'General' to prevent leaks)
+      fileQuery.$or = [
         { ownerId: req.user._id },
-        { department: req.user.department, isPublicToDepartment: true }
-      ]
-    }).populate('ownerId', 'name role department academicYear').sort({ originalName: 1 });
+        { department: req.user.department || 'General', isPublicToDepartment: true }
+      ];
+    }
+
+    const files = await File.find(fileQuery).populate('ownerId', 'name role department academicYear').sort({ originalName: 1 });
 
     let parentFolder = null;
     if (parentId) {
       parentFolder = await Folder.findById(parentId);
+      if (!parentFolder) {
+        return res.status(404).json({ message: 'Folder not found' });
+      }
+
+      // Access control check: allow if owner, admin, or same department and isPublicToDepartment (fallback to 'General' to prevent leaks)
+      const isOwner = parentFolder.ownerId.toString() === req.user._id.toString();
+      const isAdmin = req.user.role === 'admin';
+      const isDeptAllowed = parentFolder.isPublicToDepartment && parentFolder.department === (req.user.department || 'General');
+
+      if (!isOwner && !isAdmin && !isDeptAllowed) {
+        return res.status(403).json({ message: 'Not authorized to view this folder' });
+      }
     }
 
     res.status(200).json({ folders, files, currentFolder: parentFolder });
@@ -68,14 +93,7 @@ const deleteFolderRecursive = async (folderId) => {
   // 1. Find and delete all files in this folder level
   const files = await File.find({ folderId });
   for (const file of files) {
-    const filePath = path.join(__dirname, '../storage', file.storageName);
-    if (fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath);
-      } catch (err) {
-        console.error(`Failed to delete physical file: ${filePath}`, err);
-      }
-    }
+    await deleteFromStorage(file.storageName);
     await File.findByIdAndDelete(file._id);
   }
 

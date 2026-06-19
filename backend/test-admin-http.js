@@ -2,13 +2,14 @@ const http = require('http');
 const jwt = require('jsonwebtoken');
 
 // Generate token manually
-require('dotenv').config({ path: '../.env' });
+require('dotenv').config();
 // We need to fetch the admin user from DB
 const mongoose = require('mongoose');
 const User = require('./models/User');
 
 const testApi = async () => {
-    await mongoose.connect('mongodb://127.0.0.1:27017/File-Sharing');
+    const mongoURI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/File-Sharing';
+    await mongoose.connect(mongoURI);
     const adminUser = await User.findOne({ role: 'admin' });
     if (!adminUser) {
         console.log("NO ADMIN FOUND!");
