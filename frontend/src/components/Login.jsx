@@ -76,7 +76,9 @@ const Login = () => {
         navigate('/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Authentication failed. Please try again.');
+      console.error('Google Sign-In error details:', err);
+      const message = err.response?.data?.message || `${err.message}${err.response ? ` (Status: ${err.response.status})` : ''}`;
+      setError(message || 'Authentication failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
