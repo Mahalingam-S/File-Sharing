@@ -23,7 +23,11 @@ const connectDB = async () => {
     }
   } catch (error) {
     console.error(`Error: ${error.message}`);
-    process.exit(1);
+    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+      console.warn('MongoDB connection failed. Continuing execution in serverless/production context.');
+    } else {
+      process.exit(1);
+    }
   }
 };
 
