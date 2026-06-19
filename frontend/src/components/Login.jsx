@@ -32,6 +32,9 @@ const Login = () => {
   const { googleAuth, login, api } = useContext(AuthContext);
 
   useEffect(() => {
+    if (!import.meta.env.VITE_GOOGLE_CLIENT_ID) {
+      setError('Google Sign-In configuration is missing. If you are the administrator, please ensure VITE_GOOGLE_CLIENT_ID is set in your environment.');
+    }
     const fetchDepartments = async () => {
       try {
         const res = await api.get('/departments');
@@ -138,17 +141,32 @@ const Login = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
             {!showAdminLogin ? (
               <>
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => {
-                    setError('Google Sign-In failed. Please try again.');
-                  }}
-                  useOneTap
-                  shape="pill"
-                  theme="filled_black"
-                  text="continue_with"
-                  size="large"
-                />
+                {import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => {
+                      setError('Google Sign-In failed. Please try again.');
+                    }}
+                    useOneTap
+                    shape="pill"
+                    theme="filled_black"
+                    text="continue_with"
+                    size="large"
+                  />
+                ) : (
+                  <div style={{
+                    color: 'var(--danger)',
+                    fontSize: '0.875rem',
+                    textAlign: 'center',
+                    padding: '1rem',
+                    border: '1px dashed var(--danger)',
+                    borderRadius: '0.5rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                    width: '100%'
+                  }}>
+                    Google Sign-In is unavailable.
+                  </div>
+                )}
                 {isLoading && <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Authenticating...</p>}
 
                 <button
