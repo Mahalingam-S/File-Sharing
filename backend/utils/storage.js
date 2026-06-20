@@ -1,6 +1,15 @@
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+
+const getLocalStorageDir = () => {
+  const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT || __dirname.includes('/var/task') || __dirname.startsWith('/var/task');
+  if (isServerless) {
+    return path.join(os.tmpdir(), 'storage');
+  }
+  return path.join(__dirname, '../storage');
+};
 
 const s3Configured = !!(
   process.env.SUPABASE_S3_ENDPOINT &&
@@ -46,7 +55,7 @@ const uploadToStorage = async (fileBuffer, storageName, mimeType) => {
     await s3.send(command);
   } else {
     // Local fallback
-    const targetDir = path.join(__dirname, '../storage');
+    const targetDir = getLocalStorageDir();
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }
@@ -76,7 +85,8 @@ const downloadFromStorage = async (storageName, res, originalName) => {
     response.Body.pipe(res);
   } else {
     // Local fallback
-    const filePath = path.join(__dirname, '../storage', storageName);
+    const targetDir = getLocalStorageDir();
+    const filePath = path.join(targetDir, storageName);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ message: 'Physical file not found on disk' });
     }
@@ -101,7 +111,8 @@ const deleteFromStorage = async (storageName) => {
     }
   } else {
     // Local fallback
-    const filePath = path.join(__dirname, '../storage', storageName);
+    const targetDir = getLocalStorageDir();
+    const filePath = path.join(targetDir, storageName);
     if (fs.existsSync(filePath)) {
       try {
         fs.unlinkSync(filePath);
