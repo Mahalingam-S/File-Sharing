@@ -11,36 +11,8 @@ const { deleteFromStorage } = require('../utils/storage');
 const getFolderContents = async (req, res) => {
   try {
     const parentId = req.params.parentId === 'root' ? null : (req.params.parentId || null);
-
-    let folderQuery = { parentId };
-    if (!parentId) {
-      // At the root level, only show folders owned by the current user (My Files)
-      folderQuery.ownerId = req.user._id;
-    } else {
-      // Inside a subfolder, show folders owned by the user OR public to their department (fallback to 'General' to prevent leaks)
-      folderQuery.$or = [
-        { ownerId: req.user._id },
-        { department: req.user.department || 'General', isPublicToDepartment: true }
-      ];
-    }
-
-    const folders = await Folder.find(folderQuery).sort({ name: 1 });
-
-    let fileQuery = { folderId: parentId };
-    if (!parentId) {
-      // At the root level, only show files owned by the current user (My Files)
-      fileQuery.ownerId = req.user._id;
-    } else {
-      // Inside a subfolder, show files owned by the user OR public to their department (fallback to 'General' to prevent leaks)
-      fileQuery.$or = [
-        { ownerId: req.user._id },
-        { department: req.user.department || 'General', isPublicToDepartment: true }
-      ];
-    }
-
-    const files = await File.find(fileQuery).populate('ownerId', 'name role department academicYear').sort({ originalName: 1 });
-
     let parentFolder = null;
+
     if (parentId) {
       parentFolder = await Folder.findById(parentId);
       if (!parentFolder) {
@@ -56,6 +28,44 @@ const getFolderContents = async (req, res) => {
         return res.status(403).json({ message: 'Not authorized to view this folder' });
       }
     }
+
+    let folderQuery = { parentId };
+    if (!parentId) {
+      // At the root level, only show folders owned by the current user (My Files)
+      folderQuery.ownerId = req.user._id;
+    } else {
+      // Inside a subfolder, show folders owned by the user OR public to their department
+      // If the viewer is the folder owner or an admin, show all folders
+      const isOwner = parentFolder.ownerId.toString() === req.user._id.toString();
+      const isAdmin = req.user.role === 'admin';
+      if (!isOwner && !isAdmin) {
+        folderQuery.$or = [
+          { ownerId: req.user._id },
+          { department: req.user.department || 'General', isPublicToDepartment: true }
+        ];
+      }
+    }
+
+    const folders = await Folder.find(folderQuery).sort({ name: 1 });
+
+    let fileQuery = { folderId: parentId };
+    if (!parentId) {
+      // At the root level, only show files owned by the current user (My Files)
+      fileQuery.ownerId = req.user._id;
+    } else {
+      // Inside a subfolder
+      // If the viewer is the folder owner or an admin, show all files (essential for Drop Folders)
+      const isOwner = parentFolder.ownerId.toString() === req.user._id.toString();
+      const isAdmin = req.user.role === 'admin';
+      if (!isOwner && !isAdmin) {
+        fileQuery.$or = [
+          { ownerId: req.user._id },
+          { department: req.user.department || 'General', isPublicToDepartment: true }
+        ];
+      }
+    }
+
+    const files = await File.find(fileQuery).populate('ownerId', 'name role department academicYear').sort({ originalName: 1 });
 
     res.status(200).json({ folders, files, currentFolder: parentFolder });
   } catch (error) {
