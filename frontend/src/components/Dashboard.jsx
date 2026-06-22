@@ -440,6 +440,16 @@ const Dashboard = ({ defaultView = 'private' }) => {
     return matchName || matchCategory || matchDepartment || matchAcademicYear || matchOwner;
   });
 
+  const filteredStudents = currentView === 'students' ? studentsData.filter(student => {
+    if (!student) return false;
+    const term = searchTerm.toLowerCase();
+    const matchName = student.name?.toLowerCase()?.includes(term);
+    const matchEmail = student.email?.toLowerCase()?.includes(term);
+    const matchRollNo = student.rollNo?.toLowerCase()?.includes(term);
+    const matchDept = student.department?.toLowerCase()?.includes(term);
+    return matchName || matchEmail || matchRollNo || matchDept;
+  }) : [];
+
   // We no longer have a separate recent files UI block, they are displayed in the main grid
   const recentFiles = [];
 
@@ -700,14 +710,15 @@ const Dashboard = ({ defaultView = 'private' }) => {
         <header className="dashboard-header" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '1.5rem', gap: '1.25rem', width: '100%' }}>
 
           {/* Magnifying glass smart search */}
-          <div className="glass-panel" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0.6rem 1.25rem', width: '280px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="glass-panel" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0.6rem 1.25rem', width: '280px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)', opacity: currentView === 'overview' ? 0.5 : 1 }}>
             <Search size={16} color="var(--text-secondary)" />
             <input
               type="text"
-              placeholder="Search Files & Folders..."
+              placeholder={currentView === 'overview' ? "Open a folder to search..." : "Search Files & Folders..."}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ background: 'transparent', border: 'none', padding: 0, width: '100%', fontSize: '0.85rem', color: 'var(--text-primary)', outline: 'none' }}
+              disabled={currentView === 'overview'}
+              style={{ background: 'transparent', border: 'none', padding: 0, width: '100%', fontSize: '0.85rem', color: 'var(--text-primary)', outline: 'none', cursor: currentView === 'overview' ? 'not-allowed' : 'text' }}
             />
           </div>
 
@@ -1054,7 +1065,7 @@ const Dashboard = ({ defaultView = 'private' }) => {
                 )}
 
                 {/* Render Students */}
-                {currentView === 'students' && studentsData.map(student => (
+                {currentView === 'students' && filteredStudents.map(student => (
                   <div
                     key={student._id}
                     className="file-explorer-row"
@@ -1231,9 +1242,9 @@ const Dashboard = ({ defaultView = 'private' }) => {
                   );
                 })}
 
-                {filteredFolders.length === 0 && filteredFiles.length === 0 && (currentView !== 'students' || studentsData.length === 0) && (
+                {filteredFolders.length === 0 && filteredFiles.length === 0 && (currentView !== 'students' || filteredStudents.length === 0) && (
                   <div style={{ textAlign: 'center', padding: '4rem 0' }}>
-                    <Folder size={48} style={{ opacity: 0.15, margin: '0 auto 1rem' }} />
+                    <Search size={48} style={{ opacity: 0.15, margin: '0 auto 1rem', color: 'var(--text-secondary)' }} />
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{searchTerm ? 'No search results found.' : 'This workspace folder is currently empty.'}</p>
                   </div>
                 )}
