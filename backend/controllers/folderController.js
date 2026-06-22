@@ -34,11 +34,13 @@ const getFolderContents = async (req, res) => {
       // At the root level, only show folders owned by the current user (My Files)
       folderQuery.ownerId = req.user._id;
     } else {
-      // Inside a subfolder, show folders owned by the user OR public to their department
-      // If the viewer is the folder owner or an admin, show all folders
+      // Inside a subfolder
       const isOwner = parentFolder.ownerId.toString() === req.user._id.toString();
       const isAdmin = req.user.role === 'admin';
-      if (!isOwner && !isAdmin) {
+      const isStaffOrFaculty = req.user.role === 'faculty' || req.user.role === 'staff';
+
+      // Staff, faculty, folder owners, and admins see all subfolders. Students only see their own or public ones.
+      if (!isOwner && !isAdmin && !isStaffOrFaculty) {
         folderQuery.$or = [
           { ownerId: req.user._id },
           { department: req.user.department || 'General', isPublicToDepartment: true }
@@ -54,10 +56,12 @@ const getFolderContents = async (req, res) => {
       fileQuery.ownerId = req.user._id;
     } else {
       // Inside a subfolder
-      // If the viewer is the folder owner or an admin, show all files (essential for Drop Folders)
       const isOwner = parentFolder.ownerId.toString() === req.user._id.toString();
       const isAdmin = req.user.role === 'admin';
-      if (!isOwner && !isAdmin) {
+      const isStaffOrFaculty = req.user.role === 'faculty' || req.user.role === 'staff';
+
+      // Staff, faculty, folder owners, and admins see all files. Students only see their own or public ones.
+      if (!isOwner && !isAdmin && !isStaffOrFaculty) {
         fileQuery.$or = [
           { ownerId: req.user._id },
           { department: req.user.department || 'General', isPublicToDepartment: true }

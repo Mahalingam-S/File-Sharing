@@ -77,7 +77,21 @@ const downloadFile = async (req, res) => {
     const isAdmin = req.user.role === 'admin';
     const isDeptAllowed = file.isPublicToDepartment && file.department === (req.user.department || 'General');
 
-    if (!isOwner && !isAdmin && !isDeptAllowed) {
+    let isFolderAccessAllowed = false;
+    if (file.folderId) {
+      const parentFolder = await Folder.findById(file.folderId);
+      if (parentFolder) {
+        const isFolderOwner = parentFolder.ownerId.toString() === req.user._id.toString();
+        const isStaffOrFaculty = req.user.role === 'faculty' || req.user.role === 'staff';
+        
+        // Folder owner, admins, and faculty/staff have access to files inside the folder
+        if (isFolderOwner || isAdmin || isStaffOrFaculty) {
+          isFolderAccessAllowed = true;
+        }
+      }
+    }
+
+    if (!isOwner && !isAdmin && !isDeptAllowed && !isFolderAccessAllowed) {
        return res.status(403).json({ message: 'Not authorized to download this file' });
     }
 
@@ -103,7 +117,15 @@ const generateFileShareLink = async (req, res) => {
     const file = await File.findById(req.params.id);
     if (!file) return res.status(404).json({ message: 'File not found' });
     
-    if (file.ownerId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    let isShareAuthorized = file.ownerId.toString() === req.user._id.toString() || req.user.role === 'admin';
+    if (!isShareAuthorized && file.folderId) {
+      const parentFolder = await Folder.findById(file.folderId);
+      if (parentFolder && parentFolder.ownerId.toString() === req.user._id.toString()) {
+        isShareAuthorized = true;
+      }
+    }
+
+    if (!isShareAuthorized) {
       return res.status(403).json({ message: 'User not authorized' });
     }
 
@@ -202,8 +224,16 @@ const deleteFile = async (req, res) => {
     const file = await File.findById(req.params.id);
     if (!file) return res.status(404).json({ message: 'File not found' });
     
-    // Check ownership
-    if (file.ownerId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    // Check ownership or folder owner/admin
+    let isDeleteAuthorized = file.ownerId.toString() === req.user._id.toString() || req.user.role === 'admin';
+    if (!isDeleteAuthorized && file.folderId) {
+      const parentFolder = await Folder.findById(file.folderId);
+      if (parentFolder && parentFolder.ownerId.toString() === req.user._id.toString()) {
+        isDeleteAuthorized = true;
+      }
+    }
+
+    if (!isDeleteAuthorized) {
       return res.status(403).json({ message: 'User not authorized' });
     }
 
