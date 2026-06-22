@@ -1244,149 +1244,149 @@ const Dashboard = ({ defaultView = 'private' }) => {
         )}
 
         {/* Dynamic Detail slide-in Pane (Fades/Slides floating on right) */}
-        <div className="detail-pane-container" style={{ position: 'absolute', right: '2rem', top: '6rem', zIndex: 90 }}>
-          <AnimatePresence>
-            {selectedItem && (
-              <motion.div
-                initial={{ x: 300, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: 300, opacity: 0 }}
-                className="glass-panel dashboard-detail-pane"
-                style={{
-                  width: '320px',
-                  padding: '1.5rem',
-                  height: 'calc(100vh - 8rem)',
-                  overflowY: 'auto',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-                  background: 'rgba(15, 23, 42, 0.8)'
-                }}
-              >
-                <button onClick={() => setSelectedItem(null)} style={{ float: 'right', background: 'transparent', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer' }}>
-                  <X size={20} />
-                </button>
-                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                  <div style={{ background: 'rgba(255,255,255,0.04)', padding: '1.5rem', borderRadius: '16px', display: 'inline-block', marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    {getFileIconRedesigned(selectedItem.mimeType)}
-                  </div>
-                  <h3 style={{ fontSize: '1rem', marginBottom: '0.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedItem.originalName}</h3>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>File Details</p>
-                  {selectedItem.category && selectedItem.category !== 'Uncategorized' && (
-                    <div style={{ display: 'inline-block', marginTop: '8px', fontSize: '0.75rem', background: 'rgba(34, 211, 238, 0.15)', color: '#22d3ee', padding: '3px 8px', borderRadius: '8px', border: '1px solid rgba(34, 211, 238, 0.2)' }}>
-                      {selectedItem.category}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.25rem' }}>
-                  {selectedItem.isVerified && (
-                    <div style={{ background: 'rgba(52, 211, 153, 0.1)', padding: '0.75rem', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid rgba(52, 211, 153, 0.15)' }}>
-                      <CheckCircle size={16} color="var(--success)" />
-                      <p style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: '600' }}>Official Verified Campus Document</p>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Info size={14} color="var(--accent-primary)" />
-                    <div>
-                      <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Size</p>
-                      <p style={{ fontSize: '0.85rem' }}>{(selectedItem.sizeBytes / 1024 / 1024).toFixed(2)} MB</p>
-                    </div>
-                  </div>
-                  {selectedItem.ownerId && selectedItem.ownerId.name && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Shield size={14} color="#a855f7" />
-                      <div>
-                        <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Uploader</p>
-                        <p style={{ fontSize: '0.85rem' }}>{selectedItem.ownerId.name} ({selectedItem.ownerId.role})</p>
-                      </div>
-                    </div>
-                  )}
-                  {selectedItem.shareToken && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(236, 72, 153, 0.1)', padding: '10px', borderRadius: '10px', border: '1px solid rgba(236, 72, 153, 0.15)' }}>
-                      <Share2 size={14} color="#ec4899" />
-                      <div style={{ flexGrow: 1 }}>
-                        <p style={{ fontSize: '0.7rem', color: '#ec4899' }}>Active Share Link</p>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>Shared with students.</p>
-                      </div>
-                      <button
-                        onClick={(e) => handleRevokeLink(selectedItem._id, e)}
-                        className="row-action-btn"
-                        style={{ padding: '4px 8px', fontSize: '0.7rem', background: 'var(--danger)', border: 'none', color: 'white' }}
-                      >
-                        Revoke
-                      </button>
-                    </div>
-                  )}
-                  {(user?.role === 'faculty' || user?.role === 'staff') && currentView === 'private' && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Layout size={14} color={selectedItem.isPublicToDepartment ? "var(--success)" : "var(--text-secondary)"} />
-                      <div style={{ flexGrow: 1 }}>
-                        <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Dept Visibility</p>
-                        <p style={{ fontSize: '0.85rem', color: selectedItem.isPublicToDepartment ? "var(--success)" : "var(--text-primary)" }}>
-                          {selectedItem.isPublicToDepartment ? 'Visible to Dept' : 'Private'}
-                        </p>
-                      </div>
-                      <button
-                        onClick={(e) => handleTogglePublish(selectedItem._id, e)}
-                        className="row-action-btn"
-                        style={{ padding: '4px 8px', fontSize: '0.7rem', color: selectedItem.isPublicToDepartment ? "var(--danger)" : "var(--accent-primary)" }}
-                      >
-                        {selectedItem.isPublicToDepartment ? 'Hide' : 'Publish'}
-                      </button>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Calendar size={14} color="var(--success)" />
-                    <div>
-                      <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Created</p>
-                      <p style={{ fontSize: '0.85rem' }}>{new Date(selectedItem.createdAt).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px', marginTop: '2rem', flexDirection: 'column' }}>
-                  <button
-                    onClick={(e) => handleDownloadFile(selectedItem._id, selectedItem.originalName, e)}
-                    className="btn-primary"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '10px', fontSize: '0.85rem' }}
-                  >
-                    <Download size={14} /> Download File
+        <AnimatePresence>
+          {selectedItem && (
+            <div className="detail-pane-container" style={{ position: 'absolute', right: '2rem', top: '6rem', zIndex: 90 }}>
+                <motion.div
+                  initial={{ x: 300, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: 300, opacity: 0 }}
+                  className="glass-panel dashboard-detail-pane"
+                  style={{
+                    width: '320px',
+                    padding: '1.5rem',
+                    height: 'calc(100vh - 8rem)',
+                    overflowY: 'auto',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                    background: 'rgba(15, 23, 42, 0.8)'
+                  }}
+                >
+                  <button onClick={() => setSelectedItem(null)} style={{ float: 'right', background: 'transparent', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer' }}>
+                    <X size={20} />
                   </button>
-                  <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                    {user?.role !== 'student' && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setShareModal({ ...shareModal, isOpen: true, fileId: selectedItem._id }); }}
-                        className="glass-panel"
-                        style={{ flex: 1, padding: '10px', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                        title="Generate Share Link"
-                      >
-                        <Share2 size={16} />
-                      </button>
+                  <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.04)', padding: '1.5rem', borderRadius: '16px', display: 'inline-block', marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      {getFileIconRedesigned(selectedItem.mimeType)}
+                    </div>
+                    <h3 style={{ fontSize: '1rem', marginBottom: '0.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedItem.originalName}</h3>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>File Details</p>
+                    {selectedItem.category && selectedItem.category !== 'Uncategorized' && (
+                      <div style={{ display: 'inline-block', marginTop: '8px', fontSize: '0.75rem', background: 'rgba(34, 211, 238, 0.15)', color: '#22d3ee', padding: '3px 8px', borderRadius: '8px', border: '1px solid rgba(34, 211, 238, 0.2)' }}>
+                        {selectedItem.category}
+                      </div>
                     )}
-                    {(user?.role === 'faculty' || user?.role === 'staff') && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setNotifyModal({ isOpen: true, fileId: selectedItem._id, target: 'department' }); }}
-                        className="glass-panel"
-                        style={{ flex: 1, padding: '10px', color: 'var(--accent-primary)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                        title="Send Email Notification"
-                      >
-                        <Mail size={16} />
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => handleDeleteFile(selectedItem._id, e)}
-                      className="glass-panel"
-                      style={{ flex: 1, padding: '10px', color: 'var(--danger)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                      title="Delete File"
-                    >
-                      <Trash2 size={16} />
-                    </button>
                   </div>
-                </div>
-              </motion.div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.25rem' }}>
+                    {selectedItem.isVerified && (
+                      <div style={{ background: 'rgba(52, 211, 153, 0.1)', padding: '0.75rem', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid rgba(52, 211, 153, 0.15)' }}>
+                        <CheckCircle size={16} color="var(--success)" />
+                        <p style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: '600' }}>Official Verified Campus Document</p>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Info size={14} color="var(--accent-primary)" />
+                      <div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Size</p>
+                        <p style={{ fontSize: '0.85rem' }}>{(selectedItem.sizeBytes / 1024 / 1024).toFixed(2)} MB</p>
+                      </div>
+                    </div>
+                    {selectedItem.ownerId && selectedItem.ownerId.name && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Shield size={14} color="#a855f7" />
+                        <div>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Uploader</p>
+                          <p style={{ fontSize: '0.85rem' }}>{selectedItem.ownerId.name} ({selectedItem.ownerId.role})</p>
+                        </div>
+                      </div>
+                    )}
+                    {selectedItem.shareToken && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(236, 72, 153, 0.1)', padding: '10px', borderRadius: '10px', border: '1px solid rgba(236, 72, 153, 0.15)' }}>
+                        <Share2 size={14} color="#ec4899" />
+                        <div style={{ flexGrow: 1 }}>
+                          <p style={{ fontSize: '0.75rem', color: '#ec4899' }}>Active Share Link</p>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>Shared with students.</p>
+                        </div>
+                        <button
+                          onClick={(e) => handleRevokeLink(selectedItem._id, e)}
+                          className="row-action-btn"
+                          style={{ padding: '4px 8px', fontSize: '0.7rem', background: 'var(--danger)', border: 'none', color: 'white' }}
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    )}
+                    {(user?.role === 'faculty' || user?.role === 'staff') && currentView === 'private' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Layout size={14} color={selectedItem.isPublicToDepartment ? "var(--success)" : "var(--text-secondary)"} />
+                        <div style={{ flexGrow: 1 }}>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Dept Visibility</p>
+                          <p style={{ fontSize: '0.85rem', color: selectedItem.isPublicToDepartment ? "var(--success)" : "var(--text-primary)" }}>
+                            {selectedItem.isPublicToDepartment ? 'Visible to Dept' : 'Private'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={(e) => handleTogglePublish(selectedItem._id, e)}
+                          className="row-action-btn"
+                          style={{ padding: '4px 8px', fontSize: '0.7rem', color: selectedItem.isPublicToDepartment ? "var(--danger)" : "var(--accent-primary)" }}
+                        >
+                          {selectedItem.isPublicToDepartment ? 'Hide' : 'Publish'}
+                        </button>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Calendar size={14} color="var(--success)" />
+                      <div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Created</p>
+                        <p style={{ fontSize: '0.85rem' }}>{new Date(selectedItem.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '2rem', flexDirection: 'column' }}>
+                    <button
+                      onClick={(e) => handleDownloadFile(selectedItem._id, selectedItem.originalName, e)}
+                      className="btn-primary"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '10px', fontSize: '0.85rem' }}
+                    >
+                      <Download size={14} /> Download File
+                    </button>
+                    <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                      {user?.role !== 'student' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShareModal({ ...shareModal, isOpen: true, id: selectedItem._id, type: 'file', isPublic: selectedItem.isPublicToDepartment }); }}
+                          className="glass-panel"
+                          style={{ flex: 1, padding: '10px', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                          title="Generate Share Link"
+                        >
+                          <Share2 size={16} />
+                        </button>
+                      )}
+                      {(user?.role === 'faculty' || user?.role === 'staff') && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setNotifyModal({ isOpen: true, fileId: selectedItem._id, target: 'department' }); }}
+                          className="glass-panel"
+                          style={{ flex: 1, padding: '10px', color: 'var(--accent-primary)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                          title="Send Email Notification"
+                        >
+                          <Mail size={16} />
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => handleDeleteFile(selectedItem._id, e)}
+                        className="glass-panel"
+                        style={{ flex: 1, padding: '10px', color: 'var(--danger)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                        title="Delete File"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
             )}
           </AnimatePresence>
-        </div>
 
         {/* Modal */}
         <AnimatePresence>
