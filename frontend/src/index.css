@@ -184,24 +184,41 @@ button {
     backdrop-filter: blur(25px) !important;
   }
 
+  /* Make navigation horizontal pill-strip with scroll */
   aside.sidebar nav {
     display: flex !important;
     flex-direction: row !important;
     width: 100% !important;
-    justify-content: space-around !important;
-    gap: 0 !important;
+    overflow-x: auto !important;
+    scroll-behavior: smooth !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 8px !important;
+    padding: 6px 4px !important;
+    justify-content: flex-start !important;
+  }
+
+  /* Hide scrollbar on horizontal strip */
+  aside.sidebar nav::-webkit-scrollbar {
+    display: none !important;
+  }
+  aside.sidebar nav {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
   }
 
   aside.sidebar .sidebar-item {
-    flex: 1 !important;
+    flex: 0 0 auto !important; /* Prevent shrinking tabs */
     justify-content: center !important;
-    padding: 10px !important;
+    padding: 8px 14px !important;
     margin: 0 !important;
     border-radius: 12px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
   }
 
   aside.sidebar .sidebar-item span {
-    display: block !important; /* Keep text on tablet/large mobile */
+    display: inline-block !important; /* Keep text labels on mobile strip */
     font-size: 0.8rem !important;
   }
 
@@ -214,20 +231,50 @@ button {
     flex-direction: column !important;
   }
 
+  /* Premium Bottom Sheet slide-up modal for mobile file details */
+  .detail-pane-container {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: blur(4px) !important;
+    z-index: 1500 !important;
+  }
+
   .dashboard-detail-pane {
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
     width: 100% !important;
-    position: static !important;
-    margin-top: 2rem !important;
+    height: 75vh !important;
+    margin: 0 !important;
+    border-radius: 24px 24px 0 0 !important;
+    background: rgba(15, 23, 42, 0.98) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8) !important;
+    overflow-y: auto !important;
+    animation: slide-up-sheet 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  @keyframes slide-up-sheet {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
   }
 }
 
 @media (max-width: 600px) {
   aside.sidebar .sidebar-item {
-    gap: 0 !important;
+    padding: 6px 10px !important;
+    gap: 4px !important;
   }
   
   aside.sidebar .sidebar-item span {
-    display: none !important; /* Hide text on small mobile */
+    font-size: 0.75rem !important;
   }
 
   aside.sidebar > div:first-child, 
@@ -236,10 +283,11 @@ button {
     display: none !important; /* Hide logo, storage, and delete account in mobile sidebar */
   }
 
+  /* Split row styling for header search & buttons */
   .dashboard-header {
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 1rem !important;
+    gap: 0.75rem !important;
   }
 
   .dashboard-header > div {
@@ -247,8 +295,9 @@ button {
     max-width: none !important;
   }
 
-  .dashboard-header .glass-panel:last-child {
-    justify-content: space-between;
+  .header-actions-group {
+    width: 100% !important;
+    justify-content: flex-end !important;
   }
 
   .stats-grid {
@@ -256,7 +305,7 @@ button {
   }
 
   .glass-panel {
-    padding: 1.25rem !important;
+    padding: 1rem !important;
   }
 
   .info-grid {

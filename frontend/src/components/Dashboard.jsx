@@ -711,134 +711,137 @@ const Dashboard = ({ defaultView = 'private' }) => {
             />
           </div>
 
-          {/* New Action Dropdown Trigger */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowNewDropdown(!showNewDropdown)}
-              className="btn-new-gradient"
-              style={{ border: 'none', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', borderRadius: '8px' }}
-            >
-              <Plus size={16} strokeWidth={2.5} /> <span>New</span>
-            </button>
-            <AnimatePresence>
-              {showNewDropdown && (
-                <>
-                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} onClick={() => setShowNewDropdown(false)}></div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 8 }}
-                    className="glass-panel"
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: '42px',
-                      width: '180px',
-                      padding: '8px',
-                      zIndex: 999,
-                      borderRadius: '12px',
-                      boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                      border: '1px solid rgba(255,255,255,0.08)'
-                    }}
-                  >
-                    <div
-                      className="sidebar-item"
-                      onClick={() => { setShowFolderModal(true); setShowNewDropdown(false); }}
-                      style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}
-                    >
-                      <Folder size={16} color="#a855f7" />
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>New Folder</span>
-                    </div>
-                    <div
-                      className="sidebar-item"
-                      onClick={() => {
-                        setShowNewDropdown(false);
-                        setTimeout(() => {
-                          if (fileInputRef.current) {
-                            fileInputRef.current.click();
-                          }
-                        }, 50);
+          {/* Header Action Group */}
+          <div className="header-actions-group" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+            {/* New Action Dropdown Trigger */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowNewDropdown(!showNewDropdown)}
+                className="btn-new-gradient"
+                style={{ border: 'none', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', borderRadius: '8px' }}
+              >
+                <Plus size={16} strokeWidth={2.5} /> <span>New</span>
+              </button>
+              <AnimatePresence>
+                {showNewDropdown && (
+                  <>
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} onClick={() => setShowNewDropdown(false)}></div>
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      className="glass-panel"
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: '42px',
+                        width: '180px',
+                        padding: '8px',
+                        zIndex: 999,
+                        borderRadius: '12px',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                        border: '1px solid rgba(255,255,255,0.08)'
                       }}
-                      style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}
                     >
-                      <Upload size={16} color="#22d3ee" />
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>Upload File</span>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-            <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
-          </div>
-
-          {/* Bell Notifications Badge */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => {
-                setShowNotifications(!showNotifications);
-                setShowNewDropdown(false);
-              }}
-              className="glass-panel"
-              style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--text-secondary)', cursor: 'pointer' }}
-              title="Notifications"
-            >
-              <Bell size={18} />
-              {notifications.some(n => n.unread) && (
-                <span style={{ position: 'absolute', top: '2px', right: '2px', width: '8px', height: '8px', background: '#ec4899', borderRadius: '50%', boxShadow: '0 0 8px #ec4899' }}></span>
-              )}
-            </button>
-            <AnimatePresence>
-              {showNotifications && (
-                <>
-                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} onClick={() => setShowNotifications(false)}></div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 8 }}
-                    className="glass-panel"
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: '42px',
-                      width: '320px',
-                      padding: '1.25rem',
-                      zIndex: 999,
-                      borderRadius: '16px',
-                      boxShadow: '0 15px 35px rgba(0,0,0,0.6)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      background: 'rgba(15, 23, 42, 0.95)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem' }}>
-                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)' }}>Notifications</h4>
-                      <button
-                        onClick={() => setNotifications(notifications.map(n => ({ ...n, unread: false })))}
-                        style={{ background: 'transparent', border: 'none', color: '#22d3ee', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}
+                      <div
+                        className="sidebar-item"
+                        onClick={() => { setShowFolderModal(true); setShowNewDropdown(false); }}
+                        style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}
                       >
-                        Mark all read
-                      </button>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '240px', overflowY: 'auto' }}>
-                      {notifications.map(n => (
-                        <div key={n.id} style={{ display: 'flex', flexDirection: 'column', gap: '3px', padding: '8px', borderRadius: '8px', background: n.unread ? 'rgba(34, 211, 238, 0.05)' : 'transparent', borderLeft: n.unread ? '3px solid #22d3ee' : '3px solid transparent' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)' }}>{n.title}</span>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{n.time}</span>
-                          </div>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4', textAlign: 'left' }}>{n.desc}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+                        <Folder size={16} color="#a855f7" />
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>New Folder</span>
+                      </div>
+                      <div
+                        className="sidebar-item"
+                        onClick={() => {
+                          setShowNewDropdown(false);
+                          setTimeout(() => {
+                            if (fileInputRef.current) {
+                              fileInputRef.current.click();
+                            }
+                          }, 50);
+                        }}
+                        style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}
+                      >
+                        <Upload size={16} color="#22d3ee" />
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>Upload File</span>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+              <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
+            </div>
 
-          {/* Log Out Option */}
-          <button onClick={logout} className="glass-panel" style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--danger)' }} title="Sign Out">
-            <LogOut size={18} />
-          </button>
+            {/* Bell Notifications Badge */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => {
+                  setShowNotifications(!showNotifications);
+                  setShowNewDropdown(false);
+                }}
+                className="glass-panel"
+                style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                title="Notifications"
+              >
+                <Bell size={18} />
+                {notifications.some(n => n.unread) && (
+                  <span style={{ position: 'absolute', top: '2px', right: '2px', width: '8px', height: '8px', background: '#ec4899', borderRadius: '50%', boxShadow: '0 0 8px #ec4899' }}></span>
+                )}
+              </button>
+              <AnimatePresence>
+                {showNotifications && (
+                  <>
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} onClick={() => setShowNotifications(false)}></div>
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      className="glass-panel"
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: '42px',
+                        width: '320px',
+                        padding: '1.25rem',
+                        zIndex: 999,
+                        borderRadius: '16px',
+                        boxShadow: '0 15px 35px rgba(0,0,0,0.6)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        background: 'rgba(15, 23, 42, 0.95)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem' }}>
+                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)' }}>Notifications</h4>
+                        <button
+                          onClick={() => setNotifications(notifications.map(n => ({ ...n, unread: false })))}
+                          style={{ background: 'transparent', border: 'none', color: '#22d3ee', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}
+                        >
+                          Mark all read
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '240px', overflowY: 'auto' }}>
+                        {notifications.map(n => (
+                          <div key={n.id} style={{ display: 'flex', flexDirection: 'column', gap: '3px', padding: '8px', borderRadius: '8px', background: n.unread ? 'rgba(34, 211, 238, 0.05)' : 'transparent', borderLeft: n.unread ? '3px solid #22d3ee' : '3px solid transparent' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)' }}>{n.title}</span>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{n.time}</span>
+                            </div>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4', textAlign: 'left' }}>{n.desc}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Log Out Option */}
+            <button onClick={logout} className="glass-panel" style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--danger)' }} title="Sign Out">
+              <LogOut size={18} />
+            </button>
+          </div>
         </header>
 
         {/* Row 1 Deck: Welcome back banner + Storage Usage Gauge */}
@@ -1241,7 +1244,7 @@ const Dashboard = ({ defaultView = 'private' }) => {
         )}
 
         {/* Dynamic Detail slide-in Pane (Fades/Slides floating on right) */}
-        <div style={{ position: 'absolute', right: '2rem', top: '6rem', zIndex: 90 }}>
+        <div className="detail-pane-container" style={{ position: 'absolute', right: '2rem', top: '6rem', zIndex: 90 }}>
           <AnimatePresence>
             {selectedItem && (
               <motion.div
