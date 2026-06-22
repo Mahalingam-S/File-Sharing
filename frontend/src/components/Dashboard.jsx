@@ -1574,6 +1574,9 @@ const Dashboard = ({ defaultView = 'private' }) => {
                   >
                     <option value="department">Only {user?.department} Department</option>
                     <option value="all">Entire Campus (All Departments)</option>
+                    {selectedItem && selectedItem.ownerId && (selectedItem.ownerId._id || selectedItem.ownerId) !== user?._id && (
+                      <option value="owner">Document Owner / Student ({selectedItem.ownerId.name})</option>
+                    )}
                   </select>
                 </div>
 

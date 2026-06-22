@@ -21,12 +21,15 @@ const uploadFile = async (req, res) => {
     const { folderId, shareToken } = req.body;
 
     let targetFolderId = folderId && folderId !== 'root' ? folderId : null;
+    let dropFolder = null;
     
     // If a share token is provided, this is a Drop Folder upload
     if (shareToken) {
-      const dropFolder = await Folder.findOne({ shareToken, isDropFolder: true });
+      dropFolder = await Folder.findOne({ shareToken, isDropFolder: true });
       if (!dropFolder) return res.status(404).json({ message: 'Invalid or expired Drop Folder link' });
       targetFolderId = dropFolder._id;
+    } else if (targetFolderId) {
+      dropFolder = await Folder.findOne({ _id: targetFolderId, isDropFolder: true });
     }
 
     const documentCategory = classifyFile(req.file.originalname, req.file.mimetype);
@@ -54,6 +57,98 @@ const uploadFile = async (req, res) => {
       entityType: 'file',
       entityId: newFile._id
     });
+
+    // Send email notification for Drop Folder upload or general upload confirmation
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      try {
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
+          }
+        });
+
+        if (dropFolder) {
+          const folderOwner = await User.findById(dropFolder.ownerId);
+          if (folderOwner) {
+            // 1. Notify Staff / Folder Owner
+            const staffMailOptions = {
+              from: process.env.EMAIL_USER,
+              to: folderOwner.email,
+              subject: `[Campus Drive] New Submission in Drop Folder: ${dropFolder.name}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                  <h2 style="color: #22d3ee;">New Drop Folder Submission</h2>
+                  <p>Hello ${folderOwner.name},</p>
+                  <p>A new document has been submitted to your Drop Folder <strong>${dropFolder.name}</strong> by <strong>${req.user.name}</strong> (${req.user.role}, ${req.user.department} Dept).</p>
+                  <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
+                    <p style="margin: 0;"><strong>File Name:</strong> ${newFile.originalName}</p>
+                    <p style="margin: 5px 0 0 0;"><strong>Category:</strong> ${newFile.category}</p>
+                    <p style="margin: 5px 0 0 0;"><strong>Size:</strong> ${(newFile.sizeBytes / 1024 / 1024).toFixed(2)} MB</p>
+                  </div>
+                  <p>Please log in to your Campus Drive to view or download this document.</p>
+                  <br/>
+                  <p style="font-size: 12px; color: #64748b;">This is an automated message from the Campus File-Sharing System.</p>
+                </div>
+              `
+            };
+            await transporter.sendMail(staffMailOptions);
+
+            // 2. Send confirmation to Student / Uploader
+            if (req.user.email) {
+              const studentMailOptions = {
+                from: process.env.EMAIL_USER,
+                to: req.user.email,
+                subject: `[Campus Drive] Upload Successful: ${newFile.originalName}`,
+                html: `
+                  <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                    <h2 style="color: #10b981;">File Upload Confirmation</h2>
+                    <p>Hello ${req.user.name},</p>
+                    <p>Your file has been successfully uploaded to the folder <strong>${dropFolder.name}</strong>.</p>
+                    <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
+                      <p style="margin: 0;"><strong>File Name:</strong> ${newFile.originalName}</p>
+                      <p style="margin: 5px 0 0 0;"><strong>Size:</strong> ${(newFile.sizeBytes / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                    <p>Thank you for using Campus Drive.</p>
+                    <br/>
+                    <p style="font-size: 12px; color: #64748b;">This is an automated message from the Campus File-Sharing System.</p>
+                  </div>
+                `
+              };
+              await transporter.sendMail(studentMailOptions);
+            }
+          }
+        } else {
+          // General upload confirmation to the uploader
+          if (req.user.email) {
+            const confirmationMailOptions = {
+              from: process.env.EMAIL_USER,
+              to: req.user.email,
+              subject: `[Campus Drive] File Upload Successful: ${newFile.originalName}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                  <h2 style="color: #10b981;">File Upload Confirmation</h2>
+                  <p>Hello ${req.user.name},</p>
+                  <p>Your file has been successfully uploaded to your workspace.</p>
+                  <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
+                    <p style="margin: 0;"><strong>File Name:</strong> ${newFile.originalName}</p>
+                    <p style="margin: 5px 0 0 0;"><strong>Category:</strong> ${newFile.category}</p>
+                    <p style="margin: 5px 0 0 0;"><strong>Size:</strong> ${(newFile.sizeBytes / 1024 / 1024).toFixed(2)} MB</p>
+                  </div>
+                  <p>Thank you for using Campus Drive.</p>
+                  <br/>
+                  <p style="font-size: 12px; color: #64748b;">This is an automated message from the Campus File-Sharing System.</p>
+                </div>
+              `
+            };
+            await transporter.sendMail(confirmationMailOptions);
+          }
+        }
+      } catch (mailErr) {
+        console.error('Failed to send upload notification email:', mailErr);
+      }
+    }
 
     res.status(201).json(newFile);
   } catch (error) {
@@ -370,7 +465,16 @@ const notifyUsers = async (req, res) => {
     const file = await File.findById(req.params.id);
     if (!file) return res.status(404).json({ message: 'File not found' });
     
-    if (file.ownerId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    // Authorization check: allow owner, admin, or the owner of the parent folder containing the file
+    let isNotifyAuthorized = file.ownerId.toString() === req.user._id.toString() || req.user.role === 'admin';
+    if (!isNotifyAuthorized && file.folderId) {
+      const parentFolder = await Folder.findById(file.folderId);
+      if (parentFolder && parentFolder.ownerId.toString() === req.user._id.toString()) {
+        isNotifyAuthorized = true;
+      }
+    }
+
+    if (!isNotifyAuthorized) {
       return res.status(403).json({ message: 'User not authorized' });
     }
 
@@ -379,6 +483,11 @@ const notifyUsers = async (req, res) => {
       usersToNotify = await User.find({ department: req.user.department });
     } else if (target === 'all') {
       usersToNotify = await User.find({});
+    } else if (target === 'owner') {
+      const fileOwner = await User.findById(file.ownerId);
+      if (fileOwner) {
+        usersToNotify = [fileOwner];
+      }
     }
 
     // Filter out the uploader
@@ -400,7 +509,7 @@ const notifyUsers = async (req, res) => {
           <p>A new document has been shared with you by <strong>${req.user.name}</strong> (${req.user.role}, ${req.user.department} Dept).</p>
           <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
             <p style="margin: 0;"><strong>File Name:</strong> ${file.originalName}</p>
-            <p style="margin: 5px 0 0 0;"><strong>Target Audience:</strong> ${target === 'all' ? 'All Departments' : 'Your Department'}</p>
+            <p style="margin: 5px 0 0 0;"><strong>Target Audience:</strong> ${target === 'all' ? 'All Departments' : (target === 'owner' ? 'Document Owner' : 'Your Department')}</p>
           </div>
           <p>Please log in to your Campus Drive to view or download this document.</p>
           <br/>
