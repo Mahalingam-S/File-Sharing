@@ -138,7 +138,12 @@ const Dashboard = ({ defaultView = 'private' }) => {
 
     const fetchData = () => {
       console.log('[Dashboard Debug] Running auto-refresh poll for view:', currentView, 'parent:', currentParentId);
-      if (currentView === 'private' || (currentView === 'department' && currentParentId !== 'root')) {
+      if (currentView === 'overview') {
+        fetchDepartmentFiles();
+        if (user?.role === 'faculty' || user?.role === 'staff' || user?.role === 'admin') {
+          fetchDepartmentStudents();
+        }
+      } else if (currentView === 'private' || (currentView === 'department' && currentParentId !== 'root')) {
         fetchContents(currentParentId);
       } else if (currentView === 'department') {
         fetchDepartmentFiles();
