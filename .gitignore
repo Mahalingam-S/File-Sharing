@@ -13,3 +13,5 @@ coverage/
 *.log
 backend/storage/
 test_diagram.png
+.vercel
+.env*
