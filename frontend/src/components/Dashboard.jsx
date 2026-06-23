@@ -773,18 +773,7 @@ const Dashboard = ({ defaultView = 'private' }) => {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 8 }}
-                      className="glass-panel"
-                      style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: '42px',
-                        width: '180px',
-                        padding: '8px',
-                        zIndex: 999,
-                        borderRadius: '12px',
-                        boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                        border: '1px solid rgba(255,255,255,0.08)'
-                      }}
+                      className="new-action-dropdown glass-panel"
                     >
                       <div
                         className="sidebar-item"
