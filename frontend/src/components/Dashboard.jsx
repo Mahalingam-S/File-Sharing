@@ -171,6 +171,38 @@ const Dashboard = ({ defaultView = 'private' }) => {
     };
   }, [currentParentId, currentView, user]);
 
+  // Dynamic Notifications Effect
+  useEffect(() => {
+    const fetchNotificationFiles = async () => {
+      try {
+        const res = await api.get('/files/recent');
+        const files = res.data || [];
+        if (files.length > 0) {
+          setNotifications(prevNotifs => {
+            const newNotifs = files.slice(0, 5).map((file, index) => {
+              const id = file._id || index;
+              const existing = prevNotifs.find(n => n.id === id);
+              return {
+                id,
+                title: 'Recent Activity',
+                desc: `'${file.originalName}' was modified.`,
+                time: new Date(file.updatedAt || file.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                unread: existing ? existing.unread : true
+              };
+            });
+            return newNotifs;
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch recent files for notifications', err);
+      }
+    };
+    
+    fetchNotificationFiles();
+    const intervalId = setInterval(fetchNotificationFiles, 15000);
+    return () => clearInterval(intervalId);
+  }, [api]);
+
   const handleCreateFolder = async (e) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;

@@ -23,6 +23,12 @@ const AdminDashboard = () => {
   const [toast, setToast] = useState({ isOpen: false, message: '', type: 'info' });
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'users', 'files', 'logs', 'departments', 'help'
   const [searchVal, setSearchVal] = useState('');
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([
+    { id: 1, title: 'System Update', desc: 'The system has been updated successfully to version 2.1.4.', time: '10m ago', unread: true },
+    { id: 2, title: 'New Admin Alert', desc: 'Abnormal login pattern detected from IP 192.168.1.5.', time: '1h ago', unread: true },
+    { id: 3, title: 'Storage Capacity', desc: 'Overall platform storage usage has reached 74%.', time: '1d ago', unread: false }
+  ]);
   
   // Dynamic departments management state
   const [departments, setDepartments] = useState([
@@ -76,6 +82,26 @@ const AdminDashboard = () => {
     const intervalId = setInterval(fetchAdminData, 15000);
     return () => clearInterval(intervalId);
   }, [api]);
+
+  // Update notifications dynamically from audit logs
+  useEffect(() => {
+    if (logs && logs.length > 0) {
+      setNotifications(prevNotifs => {
+        const newNotifs = logs.slice(0, 5).map((log, index) => {
+          const id = log._id || index;
+          const existing = prevNotifs.find(n => n.id === id);
+          return {
+            id,
+            title: log.action || 'System Event',
+            desc: `${log.userId?.email?.split('@')[0] || 'System'} performed ${log.action} on ${log.entityType || 'resource'}`,
+            time: new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            unread: existing ? existing.unread : true
+          };
+        });
+        return newNotifs;
+      });
+    }
+  }, [logs]);
 
   useEffect(() => {
     const mainEl = document.querySelector('main');
@@ -646,10 +672,65 @@ const AdminDashboard = () => {
             </div>
 
             {/* Bell Notifications */}
-            <button className="glass-panel" style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
-              <Bell size={18} />
-              <span style={{ position: 'absolute', top: '2px', right: '2px', width: '8px', height: '8px', background: '#ec4899', borderRadius: '50%', boxShadow: '0 0 8px #ec4899' }}></span>
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="glass-panel" 
+                style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                title="Notifications"
+              >
+                <Bell size={18} />
+                {notifications.some(n => n.unread) && (
+                  <span style={{ position: 'absolute', top: '2px', right: '2px', width: '8px', height: '8px', background: '#ec4899', borderRadius: '50%', boxShadow: '0 0 8px #ec4899' }}></span>
+                )}
+              </button>
+              <AnimatePresence>
+                {showNotifications && (
+                  <>
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 998 }} onClick={() => setShowNotifications(false)}></div>
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      className="glass-panel"
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: '42px',
+                        width: '320px',
+                        padding: '1.25rem',
+                        zIndex: 999,
+                        borderRadius: '16px',
+                        boxShadow: '0 15px 35px rgba(0,0,0,0.6)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        background: 'rgba(15, 23, 42, 0.95)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem' }}>
+                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)' }}>Notifications</h4>
+                        <button 
+                          onClick={() => setNotifications(notifications.map(n => ({ ...n, unread: false })))}
+                          style={{ background: 'transparent', border: 'none', color: '#22d3ee', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}
+                        >
+                          Mark all read
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '240px', overflowY: 'auto' }}>
+                        {notifications.map(n => (
+                          <div key={n.id} style={{ display: 'flex', flexDirection: 'column', gap: '3px', padding: '8px', borderRadius: '8px', background: n.unread ? 'rgba(34, 211, 238, 0.05)' : 'transparent', borderLeft: n.unread ? '3px solid #22d3ee' : '3px solid transparent' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-primary)' }}>{n.title}</span>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{n.time}</span>
+                            </div>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4', textAlign: 'left' }}>{n.desc}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* Admin Profile capsule */}
             <div className="glass-panel" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
