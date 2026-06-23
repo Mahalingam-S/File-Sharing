@@ -658,9 +658,8 @@ const AdminDashboard = () => {
             {activeTab === 'dashboard' ? 'Platform Overview' : (activeTab === 'users' ? 'Users Management' : (activeTab === 'files' ? 'Files Directory' : (activeTab === 'logs' ? 'Security Audit Logs' : (activeTab === 'departments' ? 'Departments Management' : 'Support Tickets'))))}
           </h2>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-            {/* Magnifying glass smart search */}
-            <div className="glass-panel" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0.5rem 1.25rem', width: '280px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+          {/* Magnifying glass smart search */}
+          <div className="search-container glass-panel" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0.5rem 1.25rem', width: '280px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
               <Search size={16} color="var(--text-secondary)" />
               <input 
                 type="text" 
@@ -669,8 +668,9 @@ const AdminDashboard = () => {
                 onChange={(e) => setSearchVal(e.target.value)}
                 style={{ background: 'transparent', border: 'none', padding: 0, width: '100%', fontSize: '0.85rem', color: 'var(--text-primary)', outline: 'none' }}
               />
-            </div>
+          </div>
 
+          <div className="header-actions-group" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
             {/* Bell Notifications */}
             <div style={{ position: 'relative' }}>
               <button 
@@ -692,19 +692,7 @@ const AdminDashboard = () => {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 8 }}
-                      className="glass-panel"
-                      style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: '42px',
-                        width: '320px',
-                        padding: '1.25rem',
-                        zIndex: 999,
-                        borderRadius: '16px',
-                        boxShadow: '0 15px 35px rgba(0,0,0,0.6)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        background: 'rgba(15, 23, 42, 0.95)'
-                      }}
+                      className="notification-dropdown glass-panel"
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem' }}>
                         <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)' }}>Notifications</h4>

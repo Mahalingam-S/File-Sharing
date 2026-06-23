@@ -287,17 +287,37 @@ button {
   .dashboard-header {
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 0.75rem !important;
+    gap: 1rem !important;
   }
 
-  .dashboard-header > div {
+  .dashboard-header .search-container {
     width: 100% !important;
-    max-width: none !important;
+    max-width: 100% !important;
+    order: 2; /* Put search below title/actions if needed, or customize */
   }
 
   .header-actions-group {
     width: 100% !important;
-    justify-content: flex-end !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+    order: 3;
+  }
+
+  .header-actions-group > div {
+    display: flex;
+    justify-content: center;
+  }
+
+  /* Fixed Notification Dropdown for Mobile */
+  .notification-dropdown {
+    position: fixed !important;
+    top: 75px !important;
+    right: 1rem !important;
+    left: 1rem !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: 80vh !important;
+    z-index: 1500 !important;
   }
 
   .stats-grid {
@@ -634,5 +654,19 @@ button {
     margin-bottom: 1rem !important;
     gap: 0.75rem !important;
   }
+}
+
+/* Notification Dropdown base */
+.notification-dropdown {
+  position: absolute;
+  right: 0;
+  top: 42px;
+  width: 320px;
+  padding: 1.25rem;
+  z-index: 999;
+  border-radius: 16px;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(15, 23, 42, 0.95);
 }
 
